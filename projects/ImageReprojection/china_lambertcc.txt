@@ -1,0 +1,16 @@
+central_meridian:  110.0
+datum:  WGE
+elevation_lookup_flag:  0
+ellipse_code:  WE
+ellipse_name:  WGS 84
+false_easting_northing:  (0,0)
+false_easting_northing_units:  meters
+major_axis:  6378137
+minor_axis:  6356752.3142
+origin_latitude:  10.0
+pixel_scale_units:  meters
+pixel_scale_xy:  (30,30)
+std_parallel_1:  25.0
+std_parallel_2:  47.0
+tie_point_units:  meters
+type:  rspfLambertConformalConicProjection

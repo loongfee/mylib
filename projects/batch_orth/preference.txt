@@ -1,0 +1,10 @@
+OSSIM_NULL_PIX_UINT8: 255
+
+plugin.file1: D:\opensource\ossim\ossim\bin\ossimgdal_plugin.dll
+
+cache_size: 1024
+tile_size: 256 256
+
+ossim_threads: 4
+
+default_elevation_path: D:\workspace\dem\srtm90

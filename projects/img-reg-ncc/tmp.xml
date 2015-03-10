@@ -1,0 +1,47 @@
+<?xml version='1.0'?>
+
+<TiePointSet xmlns:gml="http://www.opengis.net/gml">
+   <MasterPath>D:\workspace\Landsat\146030_UTM.tif</MasterPath>
+   <SlavePath>D:\workspace\Landsat\LS5_TM_20090721_050335_050401_146030_FASTB_L2\header.dat</SlavePath>
+   <ImageCovariance>;0.25;0 0.25;</ImageCovariance>
+   <GroundCovariance>;1.8171367055252e-008;0 1.84171241510573e-008;0 0 900;</GroundCovariance>
+   <SimpleTiePoint>
+      <ground>
+         <gml:Point>
+            <gml:coord>
+               <X>81.9014158296521</X>
+               <Y>43.8559177549742</Y>
+            </gml:coord>
+         </gml:Point>
+      </ground>
+      <image>
+         <gml:Point>
+            <gml:coord>
+               <X>2360.68460996316</X>
+               <Y>502.178841448738</Y>
+            </gml:coord>
+         </gml:Point>
+      </image>
+      <score>0.722909052235407</score>
+   </SimpleTiePoint>
+   <SimpleTiePoint>
+      <ground>
+         <gml:Point>
+            <gml:coord>
+               <X>82.4321731716487</X>
+               <Y>43.2581204564717</Y>
+            </gml:coord>
+         </gml:Point>
+      </ground>
+      <image>
+         <gml:Point>
+            <gml:coord>
+               <X>4198.60351217117</X>
+               <Y>2392.18782537511</Y>
+            </gml:coord>
+         </gml:Point>
+      </image>
+      <score>0.933494639890936</score>
+   </SimpleTiePoint>
+</TiePointSet>
+
