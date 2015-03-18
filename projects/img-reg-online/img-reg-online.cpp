@@ -474,14 +474,19 @@ int main( int argc, char** argv )
 		////pszReferenceFile = "D:\\workspace\\HJ\\西北\\HJ1B-CCD1-38-68-20100831-L20000384864-3.TIF";
 		//pszGcpFile = "D:\\workspace\\WV01\\53553869020_01-beijing\\053553869020_01\\053553869020_01_P001_PAN\\gcp_auto_pan.txt";
 
-		//pszSourceFile = "G:\\testdata\\GF1\\beijing\\data\\GF1_PMS2_E116.8_N40.5_20130501_L1A0000119982-PAN2.tiff";
-		//pszReferenceFile = "G:\\testdata\\tmchina\\china.vrt";
-		////pszReferenceFile = "D:\\workspace\\HJ\\西北\\HJ1B-CCD1-38-68-20100831-L20000384864-3.TIF";
-		//pszGcpFile = "G:\\testdata\\GF1\\beijing\\data\\gcp_auto_pan.txt";
+		pszSourceFile = "G:\\testdata\\GF1\\beijing\\data\\GF1_PMS2_E116.8_N40.5_20130501_L1A0000119982-PAN2.tiff";
+		pszReferenceFile = "G:\\testdata\\tmchina\\china.vrt";
+		//pszReferenceFile = "D:\\workspace\\HJ\\西北\\HJ1B-CCD1-38-68-20100831-L20000384864-3.TIF";
+		pszGcpFile = "G:\\testdata\\GF1\\beijing\\data\\gcp_auto_pan.txt";
 
-		//pszSourceFile = "D:\\workspace\\LD2010003816\\header.dat";
-		//pszReferenceFile = "D:\\workspace\\LD2010003816\\TM_123036.TIF";
-		//pszGcpFile = "D:\\workspace\\LD2010003816\\auto1.txt";
+		pszSourceFile = "G:\\testdata\\GF1\\beijing\\data\\GF1_PMS2_E116.8_N40.5_20130501_L1A0000119982-MSS2.tiff";
+		pszReferenceFile = "G:\\testdata\\tmchina\\china.vrt";
+		//pszReferenceFile = "D:\\workspace\\HJ\\西北\\HJ1B-CCD1-38-68-20100831-L20000384864-3.TIF";
+		pszGcpFile = "G:\\testdata\\GF1\\beijing\\data\\gcp_auto_mss.txt";
+
+		pszSourceFile = "D:\\workspace\\LD2010003816\\header.dat";
+		pszReferenceFile = "D:\\workspace\\LD2010003816\\TM_123036.TIF";
+		pszGcpFile = "D:\\workspace\\LD2010003816\\auto1.txt";
 
 		//pszSourceFile = "D:\\workspace\\HJ\\西北\\b3.TIF";
 		//pszReferenceFile = "G:\\testdata\\china\\china2005-20141115.tif";
@@ -498,16 +503,22 @@ int main( int argc, char** argv )
 		////pszReferenceFile = "D:\\workspace\\HJ\\西北\\HJ1B-CCD1-38-68-20100831-L20000384864-3.TIF";
 		//pszGcpFile = "D:\\workspace\\PALSAR\\0000005501_001001_ALOS2024040390-141102\\gcp_auto_vv.txt";
 
+		pszSourceFile = "E:\\HJ1\\HJ-L2\\HJ\\2010.tif";
+		pszGcpFile = "E:\\HJ1\\HJ-L2\\HJ\\auto_online.txt";
+
+		pszSourceFile = "E:\\HJ1\\Scene08\\IMAGE.TIF";
+		pszGcpFile = "E:\\HJ1\\Scene08\\auto_online.txt";
+
 		sBand = 0;
 		mBand = 0;
 		pointType = radiImageRegistration::point_type::control;
 		//pointType = radiImageRegistration::point_type::tie;
 		nPoint = 25;
-		nThreads = 1;
+		nThreads = 0;
 		bAppend = false;
 		bDebug = true;
-		sAccuracy = 30;
-		sBand = 0;
+		sAccuracy = 5;
+		sBand = 2;
 		mBand = 2;
 		////tileSize = 256;
 		//nPoint = 100;

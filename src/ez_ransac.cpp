@@ -87,7 +87,7 @@ namespace mylib{
 			1000,  // the maximum rounds for RANSAC routine
 			inliers, // inliers to the final solution
 			models, // models array that fit input data
-			0.9//0.95 // the confidence want to achieve at the end
+			confidence//0.95 // the confidence want to achieve at the end
 			);
 
 		if (models.size() < 1)

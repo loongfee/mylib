@@ -79,13 +79,10 @@
   <ItemGroup>
     <ClCompile Include="img-reg.cpp" />
     <ClCompile Include="radiImageRegistration.cpp" />
-    <ClCompile Include="ThreadObserver.cpp" />
-    <ClCompile Include="ThreadReporter.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="functions.h" />
     <ClInclude Include="radiImageRegistration.h" />
-    <ClInclude Include="ThreadObserver.h" />
-    <ClInclude Include="ThreadReporter.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

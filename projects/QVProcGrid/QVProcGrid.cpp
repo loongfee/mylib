@@ -47,7 +47,13 @@ using namespace mylib;
 #include <unistd.h>
 #endif 
 
-const char* VERSION = "2.0.0";
+//const char* VERSION = "2.0.0";
+
+/* v2.0.1 
+  1. remove metadatafile when exit abnormally
+  2. enable the data for Kaishi station
+*/
+const char* VERSION = "2.0.1";
 
 static OpenThreads::Barrier bar;
 static int GLOBAL_NUM_THREADS;
@@ -426,13 +432,18 @@ bool createLonLatGrid()
 	if (!sensorId.upcase().contains("HJ") && !sensorId.upcase().contains("CBERS"))
 	{
 		cout << "Only HJ and CBERS04 satellite data are supported at present." << endl;
+
+		if (metadataFile.exists() && bRemoveMetadataFile)
+		{
+			metadataFile.remove();
+		}
 		return false;
 	}
-	if (!stationId.upcase().contains("MYC") && !stationId.upcase().contains("SYC"))
-	{
-		cout << "Only the data from Miyun and Sanya station are supported at present." << endl;
-		return false;
-	}
+	//if (!stationId.upcase().contains("MYC") && !stationId.upcase().contains("SYC"))
+	//{
+	//	cout << "Only the data from Miyun and Sanya station are supported at present." << endl;
+	//	return false;
+	//}
 
 	// 检查输出格式
 	ossimFilename outputFile(pszOutFile);

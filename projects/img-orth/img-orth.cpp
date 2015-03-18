@@ -93,7 +93,7 @@ int nThreads = 0;
 bool bOverwrite = false;
 bool bOverview = false;
 bool bRpc = false;
-bool bUseL1 = true;
+bool bUseL1 = false;
 
 const char *pszProjectFile = "";
 const char *pszPreferenceFile = "preference.txt";
@@ -433,6 +433,7 @@ int mymain(struct arg_file *gcp_file,
 		ossimFilename gcpFile(gcp_file->filename[0]);
 		ossimFilename projectionFile(projection_file->filename[0]);
 		ossimFilename outputFile(outfile->filename[0]);
+		pszReportFile = report_file->filename[0];
 		if (0 == strcmp(outfile->filename[0], ""))
 		{
 			outputFile = inputFile.path() + "\\o" + inputFile.fileNoExtension() + ".tif";

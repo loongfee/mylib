@@ -27,6 +27,7 @@ extern "C"{
 #include <vl/pgm.h>
 #include <vl/sift.h>
 #include <vl/getopt_long.h>
+#include <vl/covdet.h>
 };
 
 #include <ctime>
@@ -351,7 +352,8 @@ int getZoomLevel(double res, double lat = 0)
 {
 	//return (int)(log(156543.033900000 * cos(lat*0.0174532925) / res) / log(2) + 0.5);
 	//return (int)(log(156543.033900000 * cos(lat*0.0174532925) / res) / log(2));
-	return ceil(log(156543.033900000 * cos(lat*0.0174532925) / res) / log(2.0));
+	//return ceil(log(156543.033900000 * cos(lat*0.0174532925) / res) / log(2.0));
+	return int(log(156543.033900000 * cos(lat*0.0174532925) / res) / log(2.0)+0.5);
 }
 
 
@@ -1347,6 +1349,7 @@ static void _prepareImgAndDrawKeylines( const cv::Mat& img1,
 		singlePointColor, 1);
 }
 
+
 static void drawTogether(const cv::Mat& img1,
 	const cv::Mat& img2,
 	cv::Mat& outImg)
@@ -1355,7 +1358,8 @@ static void drawTogether(const cv::Mat& img1,
 	cv::Mat outImg2;
 	Size size(img1.cols + img2.cols, MAX(img1.rows, img2.rows));
 
-	outImg.create(size, CV_MAKETYPE(img1.depth(), 3));
+	outImg = cv::Mat(size, CV_MAKETYPE(img1.depth(), 3), cv::Scalar(0, 0, 0));
+
 	outImg1 = outImg(Rect(0, 0, img1.cols, img1.rows));
 	outImg2 = outImg(Rect(img1.cols, 0, img2.cols, img2.rows));
 
@@ -1368,6 +1372,79 @@ static void drawTogether(const cv::Mat& img1,
 		cvtColor(img2, outImg2, CV_GRAY2BGR);
 	else
 		img2.copyTo(outImg2);
+}
+
+static void drawTogether(const cv::Mat& img1,
+	const cv::Mat& img2,
+	const cv::Mat& img3,
+	cv::Mat& outImg)
+{
+	int nBlank = 0;
+	cv::Mat outImg1;
+	cv::Mat outImg2;
+	cv::Mat outImg3;
+	Size size(img1.cols + img2.cols + img3.cols + nBlank * 2, MAX(MAX(img1.rows, img2.rows), img3.rows));
+
+	outImg = cv::Mat(size, CV_MAKETYPE(img1.depth(), 3), cv::Scalar(0, 0, 0));
+
+	outImg1 = outImg(Rect(0, 0, img1.cols, img1.rows));
+	outImg2 = outImg(Rect(img1.cols + nBlank, 0, img2.cols, img2.rows));
+	outImg3 = outImg(Rect(img1.cols + img2.cols + nBlank * 2, 0, img3.cols, img3.rows));
+
+	if (img1.type() == CV_8U)
+		cvtColor(img1, outImg1, CV_GRAY2BGR);
+	else
+		img1.copyTo(outImg1);
+
+	if (img2.type() == CV_8U)
+		cvtColor(img2, outImg2, CV_GRAY2BGR);
+	else
+		img2.copyTo(outImg2);
+
+	if (img3.type() == CV_8U)
+		cvtColor(img3, outImg3, CV_GRAY2BGR);
+	else
+		img3.copyTo(outImg3);
+}
+
+static void drawTogether(const cv::Mat& img1,
+	const cv::Mat& img2,
+	const cv::Mat& img3,
+	const cv::Mat& img4,
+	cv::Mat& outImg)
+{
+	int nBlank = 0;
+	cv::Mat outImg1;
+	cv::Mat outImg2;
+	cv::Mat outImg3;
+	cv::Mat outImg4;
+	Size size(img1.cols + img2.cols + img3.cols + img4.cols + nBlank * 3, MAX(MAX(MAX(img1.rows, img2.rows), img3.rows), img4.rows));
+
+	outImg = cv::Mat(size, CV_MAKETYPE(img1.depth(), 3), cv::Scalar(0, 0, 0));
+
+	outImg1 = outImg(Rect(0, 0, img1.cols, img1.rows));
+	outImg2 = outImg(Rect(img1.cols + nBlank, 0, img2.cols, img2.rows));
+	outImg3 = outImg(Rect(img1.cols + img2.cols + nBlank * 2, 0, img3.cols, img3.rows));
+	outImg4 = outImg(Rect(img1.cols + img2.cols + img3.cols + nBlank * 3, 0, img4.cols, img4.rows));
+
+	if (img1.type() == CV_8U)
+		cvtColor(img1, outImg1, CV_GRAY2BGR);
+	else
+		img1.copyTo(outImg1);
+
+	if (img2.type() == CV_8U)
+		cvtColor(img2, outImg2, CV_GRAY2BGR);
+	else
+		img2.copyTo(outImg2);
+
+	if (img3.type() == CV_8U)
+		cvtColor(img3, outImg3, CV_GRAY2BGR);
+	else
+		img3.copyTo(outImg3);
+	if (img4.type() == CV_8U)
+		cvtColor(img4, outImg4, CV_GRAY2BGR);
+	else
+		img4.copyTo(outImg4);
 }
 
 
@@ -1483,7 +1560,7 @@ void jacErrorEquation(double *param, double *j, int nparameter, int nequation, v
 	}
 }
 
-void leastSquareMatching(cv::Mat templateMat, cv::Mat searchMat, double lsm_model[8])
+bool leastSquareMatching(cv::Mat templateMat, cv::Mat searchMat, double lsm_model[8])
 {
 	//cv::Mat img_G0;
 	//cv::Mat img_G1;
@@ -1522,27 +1599,26 @@ void leastSquareMatching(cv::Mat templateMat, cv::Mat searchMat, double lsm_mode
 	x = NULL;
 	int ix = nX / 2;
 	int iy = nY / 2;
+
+	if (ret >= 0 &&
+		(1 == info[6] || 2 == info[6] || 6 == info[6]))
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
 }
 
 int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::Mat& masterMat, ossimTDpt& tDpt, void* pData, bool bDebug)
 {
+	bool bLSM = true;
 	radiImageRegistration* pThis = (radiImageRegistration*)pData;
 	// detect corners
-	//cv::initModule_nonfree();
-	cv::initModule_features2d();
+	//cv::initModule_features2d();
 	std::vector<KeyPoint> skeypoints, mkeypoints;
-	Mat sdescriptors, mdescriptors;
-	//SIFT detector(pThis->theSiftNfeatures, pThis->theSiftNOctaveLayers, 
-	//	pThis->theSiftContrastThreshold, pThis->theSiftEdgeThreshold, pThis->theSiftSigma);
-	//if (bDebug)
-	//{
-	//	//int pid = getpid();
-	//	//string strId = string(QString::number(pid).toLatin1());
-	//	//cv::imwrite("slave_"+strId+".png", slaveMat);
-	//	//cv::imwrite("master_"+strId+".png", masterMat);
-	//	cv::imwrite("slave.png", slaveMat);
-	//	cv::imwrite("master.png", masterMat);
-	//}
+	cv::Mat sdescriptors, mdescriptors;
 	if (bDebug)
 	{
 		cv::imwrite("slave.png", slaveMat);
@@ -1553,43 +1629,39 @@ int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::M
 		cv::imwrite("image.png", img_outImage);
 	}
 
-	//// detect
-	////detector.detect( slaveMat, skeypoints );
-	//if (skeypoints.size() < 10 )
-	//{
-	//	return match_state::slave_faild;
-
-	//}
-	//// detect
-	//detector.detect( masterMat, mkeypoints );
-	//if(mkeypoints.size() < 10)
-	//{
-	//	//handlerM->close();
-	//	return match_state::master_faild;
-	//}
-
-	//// extract
-	//cv::SiftDescriptorExtractor extractor;
-	//extractor.compute( slaveMat, skeypoints, sdescriptors );
-	//extractor.compute( masterMat, mkeypoints, mdescriptors );
-
-
 	VLFeatSift(slaveMat, skeypoints, sdescriptors);
-	if (skeypoints.size() < 10 )
+	//VLFeatCovdet(slaveMat, skeypoints, sdescriptors);
+	//OrbDetector(slaveMat, skeypoints, sdescriptors);
+	if (skeypoints.size() < 10)
 	{
 		return match_state::slave_faild;
 
 	}
 	VLFeatSift(masterMat, mkeypoints, mdescriptors);
-	if(mkeypoints.size() < 10)
+	//VLFeatCovdet(masterMat, mkeypoints, mdescriptors);
+	//OrbDetector(masterMat, mkeypoints, mdescriptors);
+	if (mkeypoints.size() < 10)
 	{
-		//handlerM->close();
 		return match_state::master_faild;
 	}
 
-	BFMatcher matcher(NORM_L1, false); 
+	//BFMatcher matcher(NORM_L1, true);
+	//vector< vector< DMatch >  > matches;
+	//matcher.knnMatch(sdescriptors, mdescriptors, matches, 1);
+	//vector< DMatch > good_matches;
+	//for (size_t i = 0; i < matches.size(); i++)
+	//{
+	//	if (matches[i].size() > 0)
+	//	{
+	//		good_matches.push_back(matches[i][0]);
+	//	}
+	//}
+
+	BFMatcher matcher(NORM_L1, false);
+	//BFMatcher matcher(NORM_HAMMING, false);
 	vector< vector< DMatch >  > matches;
-	matcher.knnMatch( sdescriptors, mdescriptors, matches, 2 );
+	matcher.knnMatch(sdescriptors, mdescriptors, matches, 2);
+
 	// inverse mathcing
 	vector< vector< DMatch >  > matches2;
 	matcher.knnMatch(mdescriptors, sdescriptors, matches2, 2);
@@ -1598,7 +1670,11 @@ int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::M
 	vector< DMatch > good_matches;
 	for (size_t i = 0; i < matches.size(); i++)
 	{
-		if (matches[i][0].distance / (matches[i][1].distance+FLT_EPSILON) < 0.6)
+		if (matches[i].size() != 2)
+		{
+			continue;
+		}
+		if (matches[i][0].distance / (matches[i][1].distance + FLT_EPSILON) < 0.6)
 		{
 			good_matches.push_back(matches[i][0]);
 			continue;
@@ -1618,184 +1694,373 @@ int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::M
 		}
 	}
 
-	////vector< DMatch > good_matches;
-	////findGoodMatches(matches, good_matches, 0.75f);
-
-	//float std_scale_diff_threshold = 0.2f;
-	//for (size_t i = 0; i < good_matches.size();)
-	//{
-	//	float s1 = mkeypoints[good_matches[i].trainIdx].size;
-	//	float s2 = skeypoints[good_matches[i].queryIdx].size;
-	//	float std_scale_diff = (s1 - s2) / sqrt(s1*s1 + s2*s2 + FLT_EPSILON);
-	//	if (std_scale_diff > std_scale_diff_threshold)
-	//	{
-	//		good_matches.erase(good_matches.begin() + i);
-	//		continue;
-	//	}
-	//	i++;
-	//}
-	
-	if (good_matches.size() < 3)
+	// eliminating by scale
+	float std_scale_diff_threshold = 0.2f;
+	float scale_ratio_threshold = 0.8f;
+	for (size_t i = 0; i < good_matches.size();)
 	{
-		//handlerM->close();
-		return match_state::match_failed;
-	}
-
-	//-- Create input data
-	Eigen::MatrixXd dataPoints((int)good_matches.size(), 4);
-	for(unsigned int i = 0;i < good_matches.size();++i)
-	{
-		dataPoints(i, 0) = skeypoints[good_matches[i].queryIdx].pt.x;
-		dataPoints(i, 1) = skeypoints[good_matches[i].queryIdx].pt.y;
-		dataPoints(i, 2) = mkeypoints[good_matches[i].trainIdx].pt.x;
-		dataPoints(i, 3) = mkeypoints[good_matches[i].trainIdx].pt.y;
-	}
-	
-	// RANSAC detect outliers
-	auto_ptr< estimators::Solver<Eigen::MatrixXd, Eigen::VectorXd> > ptrSolver(
-		new estimators::rigidSolver<Eigen::MatrixXd, Eigen::VectorXd>);
-	vector<int> inliers;
-	//for (int i = 0; i < (int)good_matches.size(); i++) inliers.push_back(i);
-	vector<Eigen::VectorXd> models;
-
-	ransac::Ransac_Handler ransac_fun_Handler;
-	bool result = ransac::Ransac_RobustEstimator
-		(
-		dataPoints, // the input data
-		estimators::rigidSolver<Eigen::MatrixXd, Eigen::VectorXd>::extractor, // How select sampled point from indices
-		dataPoints.rows(),  // the number of putatives data
-		*(ptrSolver.get()),  // compute the underlying model given a sample set
-		estimators::rigidSolver<Eigen::MatrixXd, Eigen::VectorXd>::defaultEvaluator,  // the function to evaluate a given model
-		//Ransac Object that contain function:
-		// CandidatesSelector, Sampler and TerminationFunction
-		ransac_fun_Handler, // the basic ransac object
-		1000,  // the maximum rounds for RANSAC routine
-		inliers, // inliers to the final solution
-		models, // models array that fit input data
-		0.9//0.95 // the confidence want to achieve at the end
-		);
-	double s = sqrt(models[0][0] * models[0][0] + models[0][1] * models[0][1]);
-	double angle = atan(models[0][1] / models[0][0]);
-
-	double angle_threshold = 0.5; // rad -- 28.6478897565deg
-	
-	if (fabs(angle) > PI*0.25)
-	{
-		return match_state::match_failed;
-	}
-	for (size_t i = 0; i < inliers.size(); i++)
-	{
-		float a1 = mkeypoints[good_matches[inliers[i]].trainIdx].angle;
-		float a2 = skeypoints[good_matches[inliers[i]].queryIdx].angle;
-		double angle_diff = a1 - a2;
-		if (fabs(angle_diff + angle) > angle_threshold)
+		float s1 = mkeypoints[good_matches[i].trainIdx].size;
+		float s2 = skeypoints[good_matches[i].queryIdx].size;
+		float scale_ratio = fabs(s1 / s2);
+		if (scale_ratio < scale_ratio_threshold || scale_ratio * scale_ratio_threshold > 1.0f)
 		{
-			//return match_state::match_failed;
-			inliers.erase(inliers.begin() + i);
-			i--;
+			good_matches.erase(good_matches.begin() + i);
+			continue;
+		}
+		i++;
+	}
+
+	if (good_matches.size() < 4)
+	{
+		return match_state::match_failed;
+	}
+
+	// find max rotation angle
+	const int angle_bins = 20;
+	int angle_hist[angle_bins] = { 0 };
+	float angle_bin_length = 2.0f*VL_PI / (float)angle_bins;
+	std::vector<double> angle_diffList;
+	for (size_t i = 0; i < good_matches.size(); i++)
+	{
+		float a1 = mkeypoints[good_matches[i].trainIdx].angle;
+		float a2 = skeypoints[good_matches[i].queryIdx].angle;
+		float angle_diff = a1 - a2;
+		if (angle_diff < 0.0)
+		{
+			angle_diff += 2.0*VL_PI;
+		}
+
+		angle_hist[(int)(angle_diff / angle_bin_length)]++;
+	}
+
+	double ratAngle = 0.0;
+	/* find the histogram maximum */
+	int maxh = 0;
+	for (int i = 0; i < angle_bins; ++i)
+		maxh = max(maxh, angle_hist[i]);
+
+	for (int i = 0; i < angle_bins; ++i) {
+		double h0 = angle_hist[i];
+		double hm = angle_hist[(i - 1 + angle_bins) % angle_bins];
+		double hp = angle_hist[(i + 1 + angle_bins) % angle_bins];
+
+		/* is this a peak? */
+		if (h0 > 0.95*maxh && h0 > hm && h0 > hp) {
+
+			/* quadratic interpolation */
+			double di = -0.5 * (hp - hm) / (hp + hm - 2 * h0);
+			double th = 2 * VL_PI * (i + di + 0.5) / angle_bins;
+			ratAngle = th;
+			break;
 		}
 	}
-	if (inliers.size() < 3)
+
+	// eliminating by rotation
+	float angle_diff_threshold = 15.0f / 180.0f * VL_PI;
+	for (size_t i = 0; i < good_matches.size();)
 	{
-		//handlerM->close();
+		float a1 = mkeypoints[good_matches[i].trainIdx].angle;
+		float a2 = skeypoints[good_matches[i].queryIdx].angle;
+		float angle_diff = a1 - a2;
+		if (angle_diff < 0.0)
+		{
+			angle_diff += 2.0*VL_PI;
+		}
+
+		if (fabs(angle_diff - ratAngle) > angle_diff_threshold)
+		{
+			good_matches.erase(good_matches.begin() + i);
+			continue;
+		}
+		i++;
+	}
+
+	// eliminating repeated points
+	double pos_threshold = 2.0;
+	vector< DMatch > existed_matches;
+	for (size_t i = 0; i < good_matches.size();)
+	{
+		bool bExisted = false;
+		for (size_t j = 0; j < existed_matches.size(); j++)
+		{
+			if (fabs(mkeypoints[existed_matches[j].trainIdx].pt.x - mkeypoints[good_matches[i].trainIdx].pt.x) < pos_threshold
+				&& fabs(skeypoints[existed_matches[j].queryIdx].pt.x - skeypoints[good_matches[i].queryIdx].pt.x) < pos_threshold)
+			{
+				bExisted = true;
+				break;
+			}
+		}
+
+		if (!bExisted)
+		{
+			existed_matches.push_back(good_matches[i]);
+		}
+		else
+		{
+			good_matches.erase(good_matches.begin() + i);
+			continue;
+		}
+
+		i++;
+	}
+
+
+	if (good_matches.size() < 4)
+	{
 		return match_state::match_failed;
 	}
 
-	if (fabs(s - 1) > 0.5)
+	//const int offset_max = 1000;
+	//const int nbins = 2 * offset_max + 1;
+	//int xhist[nbins] = { 0 };
+	//int yhist[nbins] = { 0 };
+	//for (size_t i = 0; i < good_matches.size(); i++)
+	//{
+	//	Point2f p1 = mkeypoints[good_matches[i].trainIdx].pt;
+	//	Point2f p2 = skeypoints[good_matches[i].queryIdx].pt;
+	//	float delta_x = p1.x - (p2.x* cos(ratAngle) - p2.y* sin(ratAngle));
+	//	float delta_y = p1.y - (p2.x* sin(ratAngle) + p2.y* cos(ratAngle));
+
+	//	xhist[(int)(delta_x + offset_max)]++;
+	//	yhist[(int)(delta_y + offset_max)]++;
+	//}
+	///* find the histogram maximum */
+	//int maxhx = 0;
+	//int maxhy = 0;
+	//for (int i = 0; i < nbins; ++i)
+	//{
+	//	maxhx = max(maxhx, xhist[i]);
+	//	maxhy = max(maxhy, yhist[i]);
+	//}
+	//double offset_x = 0.0;
+	//for (int i = 0; i < nbins; ++i) {
+	//	double h0 = xhist[i];
+	//	double hm = xhist[(i - 1 + nbins) % nbins];
+	//	double hp = xhist[(i + 1 + nbins) % nbins];
+
+	//	/* is this a peak? */
+	//	if (h0 > 0.95*maxhx && h0 > hm && h0 > hp) {
+
+	//		/* quadratic interpolation */
+	//		double di = -0.5 * (hp - hm) / (hp + hm - 2 * h0);
+	//		offset_x = -offset_max + (i + di + 0.5);
+	//		break;
+	//	}
+	//}
+	//double offset_y = 0.0;
+	//for (int i = 0; i < nbins; ++i) {
+	//	double h0 = yhist[i];
+	//	double hm = yhist[(i - 1 + nbins) % nbins];
+	//	double hp = yhist[(i + 1 + nbins) % nbins];
+
+	//	/* is this a peak? */
+	//	if (h0 > 0.95*maxhy && h0 > hm && h0 > hp) {
+
+	//		/* quadratic interpolation */
+	//		double di = -0.5 * (hp - hm) / (hp + hm - 2 * h0);
+	//		offset_y = -offset_max + (i + di + 0.5);
+	//		break;
+	//	}
+	//}
+
+	//double outlier_threshold = 4.0;
+	//vector<int> inliers;
+	//for (size_t i = 0; i < good_matches.size(); i++)
+	//{
+	//	Point2f p1 = mkeypoints[good_matches[i].trainIdx].pt;
+	//	Point2f p2 = skeypoints[good_matches[i].queryIdx].pt;
+	//	float delta_x = p1.x - (p2.x* cos(ratAngle) - p2.y* sin(ratAngle));
+	//	float delta_y = p1.y - (p2.x* sin(ratAngle) + p2.y* cos(ratAngle));
+
+	//	if (fabs(delta_x - offset_x)<outlier_threshold
+	//		&& fabs(delta_y - offset_y)<outlier_threshold)
+	//	{
+	//		inliers.push_back(i);
+	//	}
+	//}
+	//if (inliers.size() < 1)
+	//{
+	//	return match_state::match_failed;
+	//}
+
+	vector<int> inliers;
+	vector<double> rigid_model = mylib::rigidRansac(skeypoints, mkeypoints, good_matches, inliers, 0.85);
+
+	//double s = sqrt(rigid_model[0] * rigid_model[0] + rigid_model[1] * rigid_model[1]);
+	////double angle = atan(rigid_model[1] / rigid_model[0]);
+	//double arcsin = rigid_model[1] / s;
+	//double arccos = rigid_model[0] / s;
+	//double angle;
+	//if (arccos >= 0)
+	//{
+	//	angle = asin(arcsin);
+	//}
+	//else
+	//{
+	//	if (arcsin >= 0)
+	//	{
+	//		angle = PI - asin(arcsin);
+	//	}
+	//	else if (arcsin < 0)
+	//	{
+	//		angle = -PI - asin(arcsin);
+	//	}
+	//}
+
+	//double angle_threshold = 0.5; // rad -- 28.6478897565deg
+	//if (fabs(angle) > PI*0.25)
+	//{
+	//	return match_state::match_failed;
+	//}
+	//for (size_t i = 0; i < inliers.size(); i++)
+	//{
+	//	float a1 = mkeypoints[good_matches[inliers[i]].trainIdx].angle * PI / 360.0;
+	//	float a2 = skeypoints[good_matches[inliers[i]].queryIdx].angle * PI / 360.0;
+	//	double angle_diff = a1 - a2;
+	//	if (fabs(angle_diff + angle) > angle_threshold)
+	//	{
+	//		return match_state::match_failed;
+	//		inliers.erase(inliers.begin() + i);
+	//		i--;
+	//	}
+	//}
+
+	//if (fabs(s - 1) > 0.5)
+	//{
+	//	return match_state::match_failed;
+	//}
+
+	// fit affine model
+	Eigen::VectorXd affine_model;
+	double residual_threshold = 1.0; //pixel
+	while (inliers.size() >= 4)
 	{
-		//std::vector<double> scale_ratioList;
-		//std::vector<double> scale_diffList;
-		//std::vector<double> angle_diffList;
+		// Build matrices to solve Ax = b problem:
+		Eigen::VectorXd b(inliers.size() * 2);
+		Eigen::MatrixXd A(inliers.size() * 2, 6);
+		//b = candidates.col(6);
+		for (int i = 0; i < (int)inliers.size(); ++i)
+		{
+			A(2 * i, 0) = 1.0;
+			A(2 * i, 1) = skeypoints[good_matches[inliers[i]].queryIdx].pt.x;
+			A(2 * i, 2) = skeypoints[good_matches[inliers[i]].queryIdx].pt.y;
+			A(2 * i, 3) = 0.0;
+			A(2 * i, 4) = 0.0;
+			A(2 * i, 5) = 0.0;
+			b(2 * i) = mkeypoints[good_matches[inliers[i]].trainIdx].pt.x;
+
+			A(2 * i + 1, 0) = 0.0;
+			A(2 * i + 1, 1) = 0.0;
+			A(2 * i + 1, 2) = 0.0;
+			A(2 * i + 1, 3) = 1.0;
+			A(2 * i + 1, 4) = skeypoints[good_matches[inliers[i]].queryIdx].pt.x;
+			A(2 * i + 1, 5) = skeypoints[good_matches[inliers[i]].queryIdx].pt.y;
+			b(2 * i + 1) = mkeypoints[good_matches[inliers[i]].trainIdx].pt.y;
+		}
+		// Compute least-squares solution:
+		affine_model = (A.transpose()*A).inverse()*A.transpose()*b;
+		Eigen::VectorXd resMat = A*affine_model - b;
+		double max_residual = 0.0;
+		int max_pos = 0;
+		for (size_t i = 0; i < inliers.size(); i++)
+		{
+			double residual = sqrt(resMat[2 * i] * resMat[2 * i] + resMat[2 * i + 1] * resMat[2 * i + 1]);
+			if (residual > max_residual)
+			{
+				max_residual = residual;
+				max_pos = i;
+			}
+		}
+
+		////vector<cv::Point2f> srcTri(inliers.size());
+		////vector<cv::Point2f> dstTri(inliers.size());
+		////for (size_t i = 0; i < inliers.size(); i++)
+		////{
+		////	srcTri[i] = skeypoints[good_matches[inliers[i]].queryIdx].pt;
+		////	dstTri[i] = mkeypoints[good_matches[inliers[i]].trainIdx].pt;
+		////}
+		/////// Get the Affine Transform
+		////// a00 a01 b00
+		////// a10 a11 b10
+		////cv::estimateAffine3D
+		////cv::Mat affine_model = cv::getAffineTransform(srcTri, dstTri);
+
+		//double max_residual = 0.0;
+		//int max_pos = 0;
 		//for (size_t i = 0; i < inliers.size(); i++)
 		//{
-		//	float s1 = mkeypoints[good_matches[inliers[i]].trainIdx].size;
-		//	float s2 = skeypoints[good_matches[inliers[i]].queryIdx].size;
-		//	scale_ratioList.push_back(s1 / (s2 + FLT_EPSILON));
-		//	scale_diffList.push_back((s1 - s2) / sqrt(s1*s1 + s2*s2 + FLT_EPSILON));
+		//	cv::Mat src_mat(3, 1, CV_32FC1);
+		//	src_mat.at<float>(0) = srcTri[i].x;
+		//	src_mat.at<float>(1) = srcTri[i].y;
+		//	src_mat.at<float>(2) = 1.0f;
+		//	cv::Mat dst_mat(2, 1, CV_32FC1);
+		//	dst_mat.at<float>(0) = dstTri[i].x;
+		//	dst_mat.at<float>(1) = dstTri[i].y;
+		//	double residual = cv::norm(affine_model*src_mat - dst_mat, NORM_L2);
 
-		//	float a1 = mkeypoints[good_matches[inliers[i]].trainIdx].angle;
-		//	float a2 = skeypoints[good_matches[inliers[i]].queryIdx].angle;
-		//	angle_diffList.push_back(a1 - a2);
+		//	if (residual > max_residual)
+		//	{
+		//		max_residual = residual;
+		//		max_pos = i;
+		//	}
 		//}
-		if (bDebug)
-		{
-			//cout<<models[0]<<endl;
-			vector< DMatch > final_matches;
-			for (int i = 0; i < (int)inliers.size(); ++i)
-			{
-				final_matches.push_back(good_matches[inliers[i]]);
-			}
-			// Draw matches
-			cv::Mat imgMatch;
-			drawMatches(slaveMat, skeypoints, masterMat, mkeypoints, final_matches, imgMatch);
-			cv::imwrite("result.png", imgMatch);
 
-			cv::Mat outMat;
-			_prepareImgAndDrawKeylines(slaveMat,
-				masterMat,
-				tDpt,
-				outMat,
-				cv::Scalar(0, 0, 255));
-			cv::imwrite("matched.png", outMat);
+		if (max_residual > residual_threshold)
+		{
+			inliers.erase(inliers.begin() + max_pos);
 		}
+		else
+		{
+			break;
+		}
+	}
+
+	if (inliers.size() < 4)
+	{
 		return match_state::match_failed;
 	}
 
-	//ransac::Ransac_Handler ransac_fun_Handler;
-	//bool result = ransac::Ransac_RobustEstimator
-	//	(
-	//	dataPoints, // the input data
-	//	estimators::affineSolver<Eigen::MatrixXd, Eigen::VectorXd>::extractor, // How select sampled point from indices
-	//	dataPoints.rows(),  // the number of putatives data
-	//	*(ptrSolver.get()),  // compute the underlying model given a sample set
-	//	estimators::affineSolver<Eigen::MatrixXd, Eigen::VectorXd>::defaultEvaluator,  // the function to evaluate a given model
-	//	//Ransac Object that contain function:
-	//	// CandidatesSelector, Sampler and TerminationFunction
-	//	ransac_fun_Handler, // the basic ransac object
-	//	1000,  // the maximum rounds for RANSAC routine
-	//	inliers, // inliers to the final solution
-	//	models, // models array that fit input data
-	//	0.95 // the confidence want to achieve at the end
-	//	);
-	//if (inliers.size() < 3)
-	//{
-	//	//handlerM->close();
-	//	return match_state::match_failed;
-	//}
+	// check the elimilated matches
+	inliers.clear();
+	for (size_t i = 0; i < good_matches.size(); i++)
+	{
+		Eigen::VectorXd b(2);
+		Eigen::MatrixXd A(2, 6);
+		A(0, 0) = 1.0;
+		A(0, 1) = skeypoints[good_matches[i].queryIdx].pt.x;
+		A(0, 2) = skeypoints[good_matches[i].queryIdx].pt.y;
+		A(0, 3) = 0.0;
+		A(0, 4) = 0.0;
+		A(0, 5) = 0.0;
+		b(0) = mkeypoints[good_matches[i].trainIdx].pt.x;
 
-	////if (fabs(models[0][1] * models[0][5] - models[0][2] * models[0][4]) < 0.5)
-	////{
-	////	//handlerM->close();
-	////	return match_state::match_failed;
-	////}
-	//double delta_energy = 1.0 - fabs(models[0][1] * models[0][5] - models[0][2] * models[0][4]);
-	//if (fabs(delta_energy) > 0.2)
-	//{
-	//	std::vector<double> scale_ratioList;
-	//	std::vector<double> scale_diffList;
-	//	for (size_t i = 0; i < inliers.size(); i++)
-	//	{
-	//		float s1 = mkeypoints[good_matches[inliers[i]].trainIdx].size;
-	//		float s2 = skeypoints[good_matches[inliers[i]].queryIdx].size;
-	//		scale_ratioList.push_back(s1 / (s2 + FLT_EPSILON));
-	//		scale_diffList.push_back((s1 - s2) / sqrt(s1*s1 + s2*s2 + FLT_EPSILON));
-	//	}
-	//	//handlerM->close();
-	//	return match_state::match_failed;
-	//}
+		A(1, 0) = 0.0;
+		A(1, 1) = 0.0;
+		A(1, 2) = 0.0;
+		A(1, 3) = 1.0;
+		A(1, 4) = skeypoints[good_matches[i].queryIdx].pt.x;
+		A(1, 5) = skeypoints[good_matches[i].queryIdx].pt.y;
+		b(1) = mkeypoints[good_matches[i].trainIdx].pt.y;
 
+		Eigen::VectorXd resMat = A*affine_model - b;
+		double residual = sqrt(resMat[0] * resMat[0] + resMat[1] * resMat[1]);
+		if (residual <= residual_threshold)
+		{
+			inliers.push_back(i);
+		}
+	}
 
-	int slaveTemplateSize = 9;	// should be odd
-	int semiTemplateSize = slaveTemplateSize / 2; // masterTemplateSize is odd
-	int searchSize = 15;	// should be odd
-	int semisearchSize = searchSize / 2; // masterTemplateSize is odd
 	// maybe a lot of correspondences are found, but we need only one correspondence for a tile
 	// whose contrast is the largest?
+	int slaveTemplateSize = 11;	// should be odd
+	int semiTemplateSize = slaveTemplateSize / 2; // masterTemplateSize is odd
+	int searchSize = 13;	// should be odd
+	int semisearchSize = searchSize / 2; // masterTemplateSize is odd
 	float maxId = inliers[0];
-	float maxContrast = mkeypoints[good_matches[inliers[0]].trainIdx].response + skeypoints[good_matches[inliers[0]].queryIdx].response;
+	float maxContrast = min(mkeypoints[good_matches[inliers[0]].trainIdx].response, skeypoints[good_matches[inliers[0]].queryIdx].response);
 	for (int i = 1; i < (int)inliers.size(); ++i)
 	{
-		double c = mkeypoints[good_matches[inliers[i]].trainIdx].response + skeypoints[good_matches[inliers[i]].queryIdx].response;
+		double c = min(mkeypoints[good_matches[inliers[i]].trainIdx].response, skeypoints[good_matches[inliers[i]].queryIdx].response);
 
 		int ix = (int)(mkeypoints[good_matches[inliers[i]].trainIdx].pt.x + 0.5);
 		int iy = (int)(mkeypoints[good_matches[inliers[i]].trainIdx].pt.y + 0.5);
@@ -1817,77 +2082,333 @@ int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::M
 		}
 	}
 
-	int imx = (int)(mkeypoints[good_matches[maxId].trainIdx].pt.x + 0.5);
-	int imy = (int)(mkeypoints[good_matches[maxId].trainIdx].pt.y + 0.5);
-	int isx = (int)(skeypoints[good_matches[maxId].queryIdx].pt.x + 0.5);
-	int isy = (int)(skeypoints[good_matches[maxId].queryIdx].pt.y + 0.5);
-
-	if (imx < semisearchSize || imy < semisearchSize || imx >= masterMat.cols - semisearchSize || imy >= masterMat.rows - semisearchSize)
+	ossimDpt mc;
+	ossimDpt sc;
+	// least squares matching
+	if (bLSM)
 	{
-		semisearchSize = min(min(abs(imx), abs(imy)),
-			min(abs(imx - (masterMat.cols - 1)), abs(imy - (masterMat.rows - 1))));
-		searchSize = semisearchSize * 2 + 1;
-	}
-	if (isx < semiTemplateSize || isy < semiTemplateSize || isx >= slaveMat.cols - semiTemplateSize || isy >= slaveMat.rows - semiTemplateSize)
-	{
-		semiTemplateSize = min(min(abs(isx), abs(isy)),
-			min(abs(isx - (slaveMat.cols - 1)), abs(isy - (slaveMat.rows - 1))));
 
-		slaveTemplateSize = semiTemplateSize * 2 + 1;
-	}
-	// matching precisely (subpixel)
-	cv::Mat mSearchMat = masterMat(cv::Rect(imx - semisearchSize, imy - semisearchSize, searchSize, searchSize));
-	cv::Mat sTemplateMat = slaveMat(cv::Rect(isx - semiTemplateSize, isy - semiTemplateSize, slaveTemplateSize, slaveTemplateSize));
-	double lsm_model[8];
-	// a1 a2 a3 b1 b2 b3 k1 k2
-	// x' = a1*x + a2*y + a3
-	// y' = b1*x + b2*y + b3
-	// f(x,y) = k1*g(x',y') + k2
-	//lsm_model[0] = 1.0;
-	//lsm_model[1] = 0.0;
-	//lsm_model[2] = 0.0 - semiTemplateSize + semisearchSize;
-	//lsm_model[3] = 0.0;
-	//lsm_model[4] = 1.0;
-	//lsm_model[5] = 0.0 - semiTemplateSize + semisearchSize;
-	//lsm_model[6] = 1.0;
-	//lsm_model[7] = 0.0;
-	lsm_model[0] = models[0][0];
-	lsm_model[1] = models[0][1];
-	lsm_model[2] = models[0][2];
-	lsm_model[3] = -models[0][1];
-	lsm_model[4] = models[0][0];
-	lsm_model[5] = models[0][3];
-	lsm_model[6] = 1.0;
-	lsm_model[7] = 0.0;
-	lsm_model[2] += lsm_model[0] * (isx - semiTemplateSize) + lsm_model[1] * (isy - semiTemplateSize) - (imx - semisearchSize);
-	lsm_model[5] += lsm_model[3] * (isx - semiTemplateSize) + lsm_model[4] * (isy - semiTemplateSize) - (imy - semisearchSize);
+		//int imx = (int)(mkeypoints[good_matches[maxId].trainIdx].pt.x + 0.5);
+		//int imy = (int)(mkeypoints[good_matches[maxId].trainIdx].pt.y + 0.5);
+		//int isx = (int)(skeypoints[good_matches[maxId].queryIdx].pt.x + 0.5);
+		//int isy = (int)(skeypoints[good_matches[maxId].queryIdx].pt.y + 0.5);
 
-	if (bDebug)
-	{
-		cv::Mat img_outImage;
-		drawTogether(sTemplateMat, mSearchMat, img_outImage);
-		cv::imwrite("lsm0.png", img_outImage);
-	}
-	leastSquareMatching(sTemplateMat, mSearchMat, lsm_model);
-	if (bDebug)
-	{
-		cv::Mat img_outImage;
-		drawTogether(sTemplateMat, mSearchMat, img_outImage);
-		cv::imwrite("lsm1.png", img_outImage);
-	}
-	int ix = semiTemplateSize;
-	int iy = semiTemplateSize;
-	double mx = lsm_model[0] * ix + lsm_model[1] * iy + lsm_model[2];
-	double my = lsm_model[3] * ix + lsm_model[4] * iy + lsm_model[5];
-	//cout << mx << ", " << my << endl;
-	ossimDpt mc = ossimDpt(imx - semisearchSize + mx, imy - semisearchSize + my);
-	ossimDpt sc = ossimDpt(isx, isy);
+		int imx = (int)(mkeypoints[good_matches[maxId].trainIdx].pt.x);
+		int imy = (int)(mkeypoints[good_matches[maxId].trainIdx].pt.y);
+		int isx = (int)(skeypoints[good_matches[maxId].queryIdx].pt.x);
+		int isy = (int)(skeypoints[good_matches[maxId].queryIdx].pt.y);
+		double delta_mx = mkeypoints[good_matches[maxId].trainIdx].pt.x - imx;
+		double delta_my = mkeypoints[good_matches[maxId].trainIdx].pt.y - imy;
+		double delta_sx = skeypoints[good_matches[maxId].queryIdx].pt.x - isx;
+		double delta_sy = skeypoints[good_matches[maxId].queryIdx].pt.y - isy;
 
-	//ossimDpt mc = ossimDpt(mkeypoints[good_matches[maxId].trainIdx].pt.x, mkeypoints[good_matches[maxId].trainIdx].pt.y);
-	//ossimDpt sc = ossimDpt(skeypoints[good_matches[maxId].queryIdx].pt.x, skeypoints[good_matches[maxId].queryIdx].pt.y);
-	//////int isx = (int)(skeypoints[good_matches[maxId].queryIdx].pt.x + 0.5);
-	//////int isy = (int)(skeypoints[good_matches[maxId].queryIdx].pt.y + 0.5);
-	//////ossimDpt sc = ossimDpt(isx, isy);
+		if (imx < semisearchSize || imy < semisearchSize || imx >= masterMat.cols - semisearchSize || imy >= masterMat.rows - semisearchSize)
+		{
+			semisearchSize = min(min(abs(imx), abs(imy)),
+				min(abs(imx - (masterMat.cols - 1)), abs(imy - (masterMat.rows - 1))));
+			searchSize = semisearchSize * 2 + 1;
+		}
+		if (isx < semiTemplateSize || isy < semiTemplateSize || isx >= slaveMat.cols - semiTemplateSize || isy >= slaveMat.rows - semiTemplateSize)
+		{
+			semiTemplateSize = min(min(abs(isx), abs(isy)),
+				min(abs(isx - (slaveMat.cols - 1)), abs(isy - (slaveMat.rows - 1))));
+
+			slaveTemplateSize = semiTemplateSize * 2 + 1;
+		}
+		// matching precisely (subpixel)
+		cv::Mat mSearchMat = masterMat(cv::Rect(imx - semisearchSize, imy - semisearchSize, searchSize, searchSize));
+		cv::Mat sTemplateMat = slaveMat(cv::Rect(isx - semiTemplateSize, isy - semiTemplateSize, slaveTemplateSize, slaveTemplateSize));
+		double lsm_model[8];
+		//// a1 a2 a3 b1 b2 b3 k1 k2
+		//// x' = a1*x + a2*y + a3
+		//// y' = b1*x + b2*y + b3
+		//// f(x,y) = k1*g(x',y') + k2
+		////lsm_model[0] = 1.0;
+		////lsm_model[1] = 0.0;
+		////lsm_model[2] = 0.0 - semiTemplateSize + semisearchSize;
+		////lsm_model[3] = 0.0;
+		////lsm_model[4] = 1.0;
+		////lsm_model[5] = 0.0 - semiTemplateSize + semisearchSize;
+		////lsm_model[6] = 1.0;
+		////lsm_model[7] = 0.0;
+		//lsm_model[0] = rigid_model[0];
+		//lsm_model[1] = rigid_model[1];
+		//lsm_model[2] = rigid_model[2];
+		//lsm_model[3] = -rigid_model[1];
+		//lsm_model[4] = rigid_model[0];
+		//lsm_model[5] = rigid_model[3];
+		lsm_model[0] = affine_model[1];
+		lsm_model[1] = affine_model[2];
+		lsm_model[2] = affine_model[0];
+		lsm_model[3] = affine_model[4];
+		lsm_model[4] = affine_model[5];
+		lsm_model[5] = affine_model[3];
+		lsm_model[6] = 1.0;
+		lsm_model[7] = 0.0;
+		lsm_model[2] += lsm_model[0] * (isx + delta_sx - semiTemplateSize) + lsm_model[1] * (isy + delta_sy - semiTemplateSize) - (imx + delta_mx - semisearchSize);
+		lsm_model[5] += lsm_model[3] * (isx + delta_sx - semiTemplateSize) + lsm_model[4] * (isy + delta_sy - semiTemplateSize) - (imy + delta_my - semisearchSize);
+
+
+		//double lsm_model[14];
+		//lsm_model[0] = rigid_model[2];
+		//lsm_model[1] = rigid_model[0];
+		//lsm_model[2] = rigid_model[1];
+		//lsm_model[3] = 0.0;
+		//lsm_model[4] = 0.0;
+		//lsm_model[5] = 0.0;
+		//lsm_model[6] = rigid_model[3];
+		//lsm_model[7] = -rigid_model[1];
+		//lsm_model[8] = rigid_model[0];
+		//lsm_model[9] = 0.0;
+		//lsm_model[10] = 0.0;
+		//lsm_model[11] = 0.0;
+
+		//lsm_model[12] = 1.0;
+		//lsm_model[13] = 0.0;
+		//lsm_model[0] += lsm_model[1] * (isx - semiTemplateSize) + lsm_model[2] * (isy - semiTemplateSize) - (imx - semisearchSize);
+		//lsm_model[6] += lsm_model[7] * (isx - semiTemplateSize) + lsm_model[8] * (isy - semiTemplateSize) - (imy - semisearchSize);
+
+		//if (bDebug)
+		//{
+		//	cv::Mat img_outImage;
+		//	drawTogether(sTemplateMat, mSearchMat, img_outImage);
+		//	cv::imwrite("lsm0.png", img_outImage);
+		//}
+		int ix = semiTemplateSize;
+		int iy = semiTemplateSize;
+		double mx;
+		double my;
+		mc = ossimDpt(mkeypoints[good_matches[maxId].trainIdx].pt.x, mkeypoints[good_matches[maxId].trainIdx].pt.y);
+		sc = ossimDpt(skeypoints[good_matches[maxId].queryIdx].pt.x, skeypoints[good_matches[maxId].queryIdx].pt.y);
+		if (leastSquareMatching(sTemplateMat, mSearchMat, lsm_model))
+		{
+			// lsm failed
+			mx = lsm_model[0] * (ix + delta_sx) + lsm_model[1] * (iy + delta_sy) + lsm_model[2];
+			my = lsm_model[3] * (ix + delta_sx) + lsm_model[4] * (iy + delta_sy) + lsm_model[5];
+			//double mx = lsm_model[0] + lsm_model[1] * ix + lsm_model[2] * iy + lsm_model[3] * ix*iy + lsm_model[4] * ix*ix + lsm_model[5] * iy*iy;
+			//double my = lsm_model[6] + lsm_model[7] * ix + lsm_model[8] * iy + lsm_model[9] * ix*iy + lsm_model[10] * ix*ix + lsm_model[11] * iy*iy;
+			//cout << mx << ", " << my << endl;
+			//mc = ossimDpt(imx - semisearchSize + mx, imy - semisearchSize + my);
+			//sc = ossimDpt(isx + delta_sx, isy + delta_sy);
+			//sc = ossimDpt(isx, isy);
+			ossimDpt mc_lsm = ossimDpt(imx - semisearchSize + mx, imy - semisearchSize + my);
+			double lsm_threshold = 2.0;	// if the position changes a lot after lsm, then it is not reliable
+			if ((mc - mc_lsm).length() < lsm_threshold)
+			{
+				mc = mc_lsm;
+			}
+		}
+		if (bDebug)
+		{
+			// ul
+			double ul_x = lsm_model[0] * (0) + lsm_model[1] * (0) + lsm_model[2];
+			double ul_y = lsm_model[3] * (0) + lsm_model[4] * (0) + lsm_model[5];
+			// ur
+			double ur_x = lsm_model[0] * (slaveTemplateSize - 1) + lsm_model[1] * (0) + lsm_model[2];
+			double ur_y = lsm_model[3] * (slaveTemplateSize - 1) + lsm_model[4] * (0) + lsm_model[5];
+			// lr
+			double lr_x = lsm_model[0] * (slaveTemplateSize - 1) + lsm_model[1] * (slaveTemplateSize - 1) + lsm_model[2];
+			double lr_y = lsm_model[3] * (slaveTemplateSize - 1) + lsm_model[4] * (slaveTemplateSize - 1) + lsm_model[5];
+			// ll
+			double ll_x = lsm_model[0] * 0 + lsm_model[1] * (slaveTemplateSize - 1) + lsm_model[2];
+			double llr_y = lsm_model[3] * 0 + lsm_model[4] * (slaveTemplateSize - 1) + lsm_model[5];
+			double max_x = max(max(ul_x, ur_x), max(lr_x, llr_y));
+			double max_y = max(max(ul_y, ur_y), max(lr_y, llr_y));
+			//cv::Mat lsmTemplateMat(int(max_x + 0.5), int(max_y + 0.5), CV_8UC1, cv::Scalar(0));
+
+			////for (int ii = 0; ii < slaveTemplateSize; ii++) //h
+			////{
+			////	for (int jj = 0; jj < slaveTemplateSize; ++jj) //w
+			////	{
+			////		int ixx = (lsm_model[0] * ii + lsm_model[1] * jj + lsm_model[2]+0.5);
+			////		int iyy = (lsm_model[3] * ii + lsm_model[4] * jj + lsm_model[5]+0.5);
+			////		if (ixx >= 0 && ixx < lsmTemplateMat.cols
+			////			&& iyy >= 0 && iyy < lsmTemplateMat.rows)
+			////		{
+			////			uchar v0 = sTemplateMat.at<uchar>(ii, jj);
+			////			double v1 = lsm_model[6] * v0 + lsm_model[7];
+			////			lsmTemplateMat.at<uchar>(ixx, iyy) = uchar(v1);
+			////		}
+			////	}
+			////}
+			//for (int ii = 0; ii < lsmTemplateMat.cols; ii++) //h
+			//{
+			//	for (int jj = 0; jj < lsmTemplateMat.rows; ++jj) //w
+			//	{
+			//		int ixx = int((lsm_model[4] * ii - lsm_model[1] * jj - lsm_model[2] * lsm_model[4] + lsm_model[1] * lsm_model[5]) 
+			//			/ (lsm_model[0] * lsm_model[4] - lsm_model[1] * lsm_model[3]) + 0.5);
+			//		int iyy = int((-lsm_model[3] * ii + lsm_model[0] * jj - lsm_model[0] * lsm_model[5] + lsm_model[2] * lsm_model[3])
+			//			/ (lsm_model[0] * lsm_model[4] - lsm_model[1] * lsm_model[3]) + 0.5);
+			//		if (ixx >= 0 && ixx < sTemplateMat.cols
+			//			&& iyy >= 0 && iyy < sTemplateMat.rows)
+			//		{
+			//			uchar v0 = sTemplateMat.at<uchar>(ixx, iyy);
+			//			double v1 = lsm_model[6] * v0 + lsm_model[7];
+			//			//lsmTemplateMat.at<uchar>(ii, jj) = v0;
+			//			if (v1 > 255.0)
+			//			{
+			//				lsmTemplateMat.at<uchar>(ii, jj) = 255;
+			//				if (255 == v0)
+			//				{
+			//					// let me see
+			//					int aaaa = char(v1);
+			//				}
+			//			}
+			//			else if (v1 < 0.0)
+			//			{
+			//				lsmTemplateMat.at<uchar>(ii, jj) = 0;
+			//				if (255 == v0)
+			//				{
+			//					// let me see
+			//					int aaaa = char(v1);
+			//				}
+			//			}
+			//			else
+			//			{
+			//				lsmTemplateMat.at<uchar>(ii, jj) = static_cast<uchar>(v1);
+			//				if (255 == v0)
+			//				{
+			//					// let me see
+			//					int aaaa = char(v1);
+			//				}
+			//			}
+			//		}
+			//	}
+			//}
+
+			cv::Mat lsmTemplateMat;
+			cv::Mat affineMat(2, 3, CV_32F);
+			affineMat.at<float>(0, 0) = lsm_model[0];
+			affineMat.at<float>(0, 1) = lsm_model[1];
+			affineMat.at<float>(0, 2) = lsm_model[2];
+			affineMat.at<float>(1, 0) = lsm_model[3];
+			affineMat.at<float>(1, 1) = lsm_model[4];
+			affineMat.at<float>(1, 2) = lsm_model[5];
+			cv::warpAffine(sTemplateMat, lsmTemplateMat, affineMat,
+				cv::Size(int(max_x + 0.5), int(max_y + 0.5)), INTER_CUBIC);
+			//cv::Mat lsmTemplateMat_float(lsmTemplateMat.size(), CV_32F, cv::Scalar(255));
+
+			for (int ii = 0; ii < lsmTemplateMat.rows; ii++) //h
+			{
+				for (int jj = 0; jj < lsmTemplateMat.cols; ++jj) //w
+				{
+					uchar v0 = lsmTemplateMat.at<uchar>(ii, jj);
+					if (0 != v0)
+					{
+						uchar v0_ = mSearchMat.at<uchar>(ii, jj);
+						double v1 = lsm_model[6] * v0_ + lsm_model[7];
+						//double v1 = lsm_model[6] * v0 + lsm_model[7];
+						////double v1 = (v0 - lsm_model[7]) / lsm_model[6];
+						//lsmTemplateMat_float.at<float>(ii, jj) = v1;
+						//lsmTemplateMat.at<uchar>(ii, jj) = uchar(v1_);
+						//lsmTemplateMat.at<uchar>(ii, jj) = uchar(v1);
+						////lsmTemplateMat.at<uchar>(ii, jj) = uchar(v1);
+						if (v1 > 255.0)
+						{
+							lsmTemplateMat.at<uchar>(ii, jj) = 255;
+						}
+						else if (v1 < 0.0)
+						{
+							lsmTemplateMat.at<uchar>(ii, jj) = 0;
+						}
+						else
+						{
+							lsmTemplateMat.at<uchar>(ii, jj) = uchar(v1);
+						}
+
+					}
+				}
+			}
+			//cv::normalize(lsmTemplateMat_float, lsmTemplateMat, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+
+			//for (int ii = 0; ii < slaveTemplateSize; ii++) //h
+			//{
+			//	for (int jj = 0; jj < slaveTemplateSize; ++jj) //w
+			//	{
+			//		int ixx = (lsm_model[0] * ii + lsm_model[1] * jj + lsm_model[2]+0.5);
+			//		int iyy = (lsm_model[3] * ii + lsm_model[4] * jj + lsm_model[5]+0.5);
+			//		if (ixx >= 0 && ixx < lsmTemplateMat.cols
+			//			&& iyy >= 0 && iyy < lsmTemplateMat.rows)
+			//		{
+			//			uchar v0 = sTemplateMat.at<uchar>(ii, jj);
+			//			double v1 = lsm_model[6] * v0 + lsm_model[7];
+			//			lsmTemplateMat.at<uchar>(ixx, iyy) = uchar(v1);
+			//		}
+			//	}
+			//}
+
+			int interplate_type = INTER_CUBIC;
+			interplate_type = INTER_NEAREST;
+			int factor = 1;
+			if (sTemplateMat.type() == CV_8U)
+				cvtColor(sTemplateMat, sTemplateMat, CV_GRAY2RGB);
+			else
+				sTemplateMat.copyTo(sTemplateMat);
+			cv::resize(sTemplateMat, sTemplateMat, cv::Size(sTemplateMat.cols*factor, sTemplateMat.rows*factor), 0.0, 0.0, interplate_type);
+
+			if (mSearchMat.type() == CV_8U)
+				cvtColor(mSearchMat, mSearchMat, CV_GRAY2RGB);
+			else
+				mSearchMat.copyTo(mSearchMat);
+			cv::resize(mSearchMat, mSearchMat, cv::Size(mSearchMat.cols*factor, mSearchMat.rows*factor), 0.0, 0.0, interplate_type);
+
+			if (lsmTemplateMat.type() == CV_8U)
+				cvtColor(lsmTemplateMat, lsmTemplateMat, CV_GRAY2RGB);
+			else
+				lsmTemplateMat.copyTo(lsmTemplateMat);
+			cv::resize(lsmTemplateMat, lsmTemplateMat, cv::Size(lsmTemplateMat.cols*factor, lsmTemplateMat.rows*factor), 0.0, 0.0, interplate_type);
+
+			cv::Mat mSearchMatOrigin;
+			mSearchMat.copyTo(mSearchMatOrigin);
+
+
+			int semiCrossWidth = 2;
+			cv::Scalar singlePointColor(0, 0, 255);
+			cv::line(sTemplateMat, cv::Point((semiTemplateSize + delta_sx)*factor - semiCrossWidth, (semiTemplateSize + delta_sy)*factor),
+				cv::Point((semiTemplateSize + delta_sx)*factor + semiCrossWidth, (semiTemplateSize + delta_sy)*factor),
+				singlePointColor, 1);
+			cv::line(sTemplateMat, cv::Point((semiTemplateSize + delta_sx)*factor, (semiTemplateSize + delta_sy)*factor - semiCrossWidth),
+				cv::Point((semiTemplateSize + delta_sx)*factor, (semiTemplateSize + delta_sy)*factor + semiCrossWidth),
+				singlePointColor, 1);
+			cv::imwrite("lsm_template.png", sTemplateMat);
+
+			cv::line(mSearchMat, cv::Point((mx)*factor - semiCrossWidth, (my)*factor),
+				cv::Point((mx)*factor + semiCrossWidth, (my)*factor),
+				singlePointColor, 1);
+			cv::line(mSearchMat, cv::Point((mx)*factor, (my)*factor - semiCrossWidth),
+				cv::Point((mx)*factor, (my)*factor + semiCrossWidth),
+				singlePointColor, 1);
+			cv::imwrite("lsm_search.png", mSearchMat);
+
+			cv::line(lsmTemplateMat, cv::Point((mx)*factor - semiCrossWidth, (my)*factor),
+				cv::Point((mx)*factor + semiCrossWidth, (my)*factor),
+				singlePointColor, 1);
+			cv::line(lsmTemplateMat, cv::Point((mx)*factor, (my)*factor - semiCrossWidth),
+				cv::Point((mx)*factor, (my)*factor + semiCrossWidth),
+				singlePointColor, 1);
+			cv::imwrite("lsm_warp.png", lsmTemplateMat);
+
+
+			cv::line(mSearchMatOrigin, cv::Point((semisearchSize + delta_mx)*factor - semiCrossWidth, (semisearchSize + delta_my)*factor),
+				cv::Point((semisearchSize + delta_mx)*factor + semiCrossWidth, (semisearchSize + delta_my)*factor),
+				singlePointColor, 1);
+			cv::line(mSearchMatOrigin, cv::Point((semisearchSize + delta_mx)*factor, (semisearchSize + delta_my)*factor - semiCrossWidth),
+				cv::Point((semisearchSize + delta_mx)*factor, (semisearchSize + delta_my)*factor + semiCrossWidth),
+				singlePointColor, 1);
+			cv::imwrite("lsm_search_origin.png", mSearchMatOrigin);
+
+			cv::Mat img_outImage;
+			drawTogether(sTemplateMat, mSearchMatOrigin, mSearchMat, lsmTemplateMat, img_outImage);
+			cv::imwrite("lsm.png", img_outImage);
+		}
+	}
+	else
+	{
+		mc = ossimDpt(mkeypoints[good_matches[maxId].trainIdx].pt.x, mkeypoints[good_matches[maxId].trainIdx].pt.y);
+		sc = ossimDpt(skeypoints[good_matches[maxId].queryIdx].pt.x, skeypoints[good_matches[maxId].queryIdx].pt.y);
+	}
+
+	++matched_counter;
 	double c = mkeypoints[good_matches[maxId].trainIdx].response + skeypoints[good_matches[maxId].queryIdx].response;
 	tDpt = ossimTDpt(mc, sc, mkeypoints[good_matches[maxId].trainIdx].response);
 
@@ -1934,13 +2455,588 @@ int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::M
 			_mkdir(matchedFolder.c_str());
 		}
 		char buf[256];
-		sprintf_s(buf, "%s\\matched%04d.png\0", matchedFolder.c_str(), ++matched_counter);
+		sprintf_s(buf, "%s\\matched%04d.png\0", matchedFolder.c_str(), matched_counter);
 		cv::imwrite(buf, outMat);
-		sprintf_s(buf, "%s\\result%04d.png\0", matchedFolder.c_str(), matched_counter);
+		sprintf_s(buf, "%s\\result%04d_%d.png\0", matchedFolder.c_str(), matched_counter, (int)inliers.size());
 		cv::imwrite(buf, imgMatch);
 	}
+
+	//handlerM->close();
 	return match_state::success;
 }
+
+//int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::Mat& masterMat, ossimTDpt& tDpt, void* pData, bool bDebug)
+//{
+//	bool bLSM = true;
+//	radiImageRegistration* pThis = (radiImageRegistration*)pData;
+//	// detect corners
+//	//cv::initModule_features2d();
+//	std::vector<KeyPoint> skeypoints, mkeypoints;
+//	cv::Mat sdescriptors, mdescriptors;
+//	if (bDebug)
+//	{
+//		cv::imwrite("slave.png", slaveMat);
+//		cv::imwrite("master.png", masterMat);
+//
+//		cv::Mat img_outImage;
+//		drawTogether(slaveMat, masterMat, img_outImage);
+//		cv::imwrite("image.png", img_outImage);
+//	}
+//
+//	VLFeatSift(slaveMat, skeypoints, sdescriptors);
+//	//VLFeatCovdet(slaveMat, skeypoints, sdescriptors);
+//	//OrbDetector(slaveMat, skeypoints, sdescriptors);
+//	if (skeypoints.size() < 10)
+//	{
+//		return match_state::slave_faild;
+//
+//	}
+//	VLFeatSift(masterMat, mkeypoints, mdescriptors);
+//	//VLFeatCovdet(masterMat, mkeypoints, mdescriptors);
+//	//OrbDetector(masterMat, mkeypoints, mdescriptors);
+//	if (mkeypoints.size() < 10)
+//	{
+//		return match_state::master_faild;
+//	}
+//
+//	//BFMatcher matcher(NORM_L1, true);
+//	//vector< vector< DMatch >  > matches;
+//	//matcher.knnMatch(sdescriptors, mdescriptors, matches, 1);
+//	//vector< DMatch > good_matches;
+//	//for (size_t i = 0; i < matches.size(); i++)
+//	//{
+//	//	if (matches[i].size() > 0)
+//	//	{
+//	//		good_matches.push_back(matches[i][0]);
+//	//	}
+//	//}
+//
+//	BFMatcher matcher(NORM_L1, false);
+//	//BFMatcher matcher(NORM_HAMMING, false);
+//	vector< vector< DMatch >  > matches;
+//	matcher.knnMatch(sdescriptors, mdescriptors, matches, 2);
+//
+//	// inverse mathcing
+//	vector< vector< DMatch >  > matches2;
+//	matcher.knnMatch(mdescriptors, sdescriptors, matches2, 2);
+//
+//	// "cross-matching" and "first and second minimum distances ratio test"
+//	vector< DMatch > good_matches;
+//	for (size_t i = 0; i < matches.size(); i++)
+//	{
+//		if (matches[i].size() != 2)
+//		{
+//			continue;
+//		}
+//		if (matches[i][0].distance / (matches[i][1].distance + FLT_EPSILON) < 0.6)
+//		{
+//			good_matches.push_back(matches[i][0]);
+//			continue;
+//		}
+//		int queryIdx = matches[i][0].queryIdx;
+//		int trainIdx = matches[i][0].trainIdx;
+//		for (size_t j = 0; j < matches2.size(); j++)
+//		{
+//			int queryIdx2 = matches2[j][0].trainIdx;
+//			int trainIdx2 = matches2[j][0].queryIdx;
+//
+//			if (queryIdx == queryIdx2 && trainIdx == trainIdx2)
+//			{
+//				good_matches.push_back(matches[i][0]);
+//				break;
+//			}
+//		}
+//	}
+//
+//	// eliminating by scale
+//	float std_scale_diff_threshold = 0.2f;
+//	float scale_ratio_threshold = 0.8f;
+//	for (size_t i = 0; i < good_matches.size();)
+//	{
+//		float s1 = mkeypoints[good_matches[i].trainIdx].size;
+//		float s2 = skeypoints[good_matches[i].queryIdx].size;
+//		float scale_ratio = fabs(s1 / s2);
+//		if (scale_ratio < scale_ratio_threshold || scale_ratio * scale_ratio_threshold > 1.0f)
+//		{
+//			good_matches.erase(good_matches.begin() + i);
+//			continue;
+//		}
+//		i++;
+//	}
+//
+//	if (good_matches.size() < 4)
+//	{
+//		return match_state::match_failed;
+//	}
+//
+//	// find max rotation angle
+//	const int angle_bins = 20;
+//	int angle_hist[angle_bins] = { 0 };
+//	float angle_bin_length = 2.0f*VL_PI / (float)angle_bins;
+//	std::vector<double> angle_diffList;
+//	for (size_t i = 0; i < good_matches.size(); i++)
+//	{
+//		float a1 = mkeypoints[good_matches[i].trainIdx].angle;
+//		float a2 = skeypoints[good_matches[i].queryIdx].angle;
+//		float angle_diff = a1 - a2;
+//		if (angle_diff < 0.0)
+//		{
+//			angle_diff += 2.0*VL_PI;
+//		}
+//
+//		angle_hist[(int)(angle_diff / angle_bin_length)]++;
+//	}
+//
+//	double ratAngle = 0.0;
+//	/* find the histogram maximum */
+//	int maxh = 0;
+//	for (int i = 0; i < angle_bins; ++i)
+//		maxh = max(maxh, angle_hist[i]);
+//
+//	for (int i = 0; i < angle_bins; ++i) {
+//		double h0 = angle_hist[i];
+//		double hm = angle_hist[(i - 1 + angle_bins) % angle_bins];
+//		double hp = angle_hist[(i + 1 + angle_bins) % angle_bins];
+//
+//		/* is this a peak? */
+//		if (h0 > 0.95*maxh && h0 > hm && h0 > hp) {
+//
+//			/* quadratic interpolation */
+//			double di = -0.5 * (hp - hm) / (hp + hm - 2 * h0);
+//			double th = 2 * VL_PI * (i + di + 0.5) / angle_bins;
+//			ratAngle = th;
+//			break;
+//		}
+//	}
+//
+//	// eliminating by rotation
+//	float angle_diff_threshold = 20.0f / 180.0f * VL_PI;
+//	for (size_t i = 0; i < good_matches.size();)
+//	{
+//		float a1 = mkeypoints[good_matches[i].trainIdx].angle;
+//		float a2 = skeypoints[good_matches[i].queryIdx].angle;
+//		float angle_diff = a1 - a2;
+//		if (angle_diff < 0.0)
+//		{
+//			angle_diff += 2.0*VL_PI;
+//		}
+//
+//		if (fabs(angle_diff - ratAngle) > angle_diff_threshold)
+//		{
+//			good_matches.erase(good_matches.begin() + i);
+//			continue;
+//		}
+//		i++;
+//	}
+//
+//	// eliminating repeated points
+//	double pos_threshold = 2.0;
+//	vector< DMatch > existed_matches;
+//	for (size_t i = 0; i < good_matches.size();)
+//	{
+//		bool bExisted = false;
+//		for (size_t j = 0; j < existed_matches.size(); j++)
+//		{
+//			if (fabs(mkeypoints[existed_matches[j].trainIdx].pt.x - mkeypoints[good_matches[i].trainIdx].pt.x) < pos_threshold
+//				&& fabs(skeypoints[existed_matches[j].queryIdx].pt.x - skeypoints[good_matches[i].queryIdx].pt.x) < pos_threshold)
+//			{
+//				bExisted = true;
+//				break;
+//			}
+//		}
+//
+//		if (!bExisted)
+//		{
+//			existed_matches.push_back(good_matches[i]);
+//		}
+//		else
+//		{
+//			good_matches.erase(good_matches.begin() + i);
+//			continue;
+//		}
+//
+//		i++;
+//	}
+//
+//
+//	if (good_matches.size() < 4)
+//	{
+//		return match_state::match_failed;
+//	}
+//
+//	//const int offset_max = 1000;
+//	//const int nbins = 2 * offset_max + 1;
+//	//int xhist[nbins] = { 0 };
+//	//int yhist[nbins] = { 0 };
+//	//for (size_t i = 0; i < good_matches.size(); i++)
+//	//{
+//	//	Point2f p1 = mkeypoints[good_matches[i].trainIdx].pt;
+//	//	Point2f p2 = skeypoints[good_matches[i].queryIdx].pt;
+//	//	float delta_x = p1.x - (p2.x* cos(ratAngle) - p2.y* sin(ratAngle));
+//	//	float delta_y = p1.y - (p2.x* sin(ratAngle) + p2.y* cos(ratAngle));
+//
+//	//	xhist[(int)(delta_x + offset_max)]++;
+//	//	yhist[(int)(delta_y + offset_max)]++;
+//	//}
+//	///* find the histogram maximum */
+//	//int maxhx = 0;
+//	//int maxhy = 0;
+//	//for (int i = 0; i < nbins; ++i)
+//	//{
+//	//	maxhx = max(maxhx, xhist[i]);
+//	//	maxhy = max(maxhy, yhist[i]);
+//	//}
+//	//double offset_x = 0.0;
+//	//for (int i = 0; i < nbins; ++i) {
+//	//	double h0 = xhist[i];
+//	//	double hm = xhist[(i - 1 + nbins) % nbins];
+//	//	double hp = xhist[(i + 1 + nbins) % nbins];
+//
+//	//	/* is this a peak? */
+//	//	if (h0 > 0.95*maxhx && h0 > hm && h0 > hp) {
+//
+//	//		/* quadratic interpolation */
+//	//		double di = -0.5 * (hp - hm) / (hp + hm - 2 * h0);
+//	//		offset_x = -offset_max + (i + di + 0.5);
+//	//		break;
+//	//	}
+//	//}
+//	//double offset_y = 0.0;
+//	//for (int i = 0; i < nbins; ++i) {
+//	//	double h0 = yhist[i];
+//	//	double hm = yhist[(i - 1 + nbins) % nbins];
+//	//	double hp = yhist[(i + 1 + nbins) % nbins];
+//
+//	//	/* is this a peak? */
+//	//	if (h0 > 0.95*maxhy && h0 > hm && h0 > hp) {
+//
+//	//		/* quadratic interpolation */
+//	//		double di = -0.5 * (hp - hm) / (hp + hm - 2 * h0);
+//	//		offset_y = -offset_max + (i + di + 0.5);
+//	//		break;
+//	//	}
+//	//}
+//
+//	//double outlier_threshold = 4.0;
+//	//vector<int> inliers;
+//	//for (size_t i = 0; i < good_matches.size(); i++)
+//	//{
+//	//	Point2f p1 = mkeypoints[good_matches[i].trainIdx].pt;
+//	//	Point2f p2 = skeypoints[good_matches[i].queryIdx].pt;
+//	//	float delta_x = p1.x - (p2.x* cos(ratAngle) - p2.y* sin(ratAngle));
+//	//	float delta_y = p1.y - (p2.x* sin(ratAngle) + p2.y* cos(ratAngle));
+//
+//	//	if (fabs(delta_x - offset_x)<outlier_threshold
+//	//		&& fabs(delta_y - offset_y)<outlier_threshold)
+//	//	{
+//	//		inliers.push_back(i);
+//	//	}
+//	//}
+//	//if (inliers.size() < 1)
+//	//{
+//	//	return match_state::match_failed;
+//	//}
+//
+//	vector<int> inliers;
+//	vector<double> rigid_model = mylib::rigidRansac(skeypoints, mkeypoints, good_matches, inliers, 0.9);
+//
+//	//double s = sqrt(rigid_model[0] * rigid_model[0] + rigid_model[1] * rigid_model[1]);
+//	////double angle = atan(rigid_model[1] / rigid_model[0]);
+//	//double arcsin = rigid_model[1] / s;
+//	//double arccos = rigid_model[0] / s;
+//	//double angle;
+//	//if (arccos >= 0)
+//	//{
+//	//	angle = asin(arcsin);
+//	//}
+//	//else
+//	//{
+//	//	if (arcsin >= 0)
+//	//	{
+//	//		angle = PI - asin(arcsin);
+//	//	}
+//	//	else if (arcsin < 0)
+//	//	{
+//	//		angle = -PI - asin(arcsin);
+//	//	}
+//	//}
+//
+//	//double angle_threshold = 0.5; // rad -- 28.6478897565deg
+//	//if (fabs(angle) > PI*0.25)
+//	//{
+//	//	return match_state::match_failed;
+//	//}
+//	//for (size_t i = 0; i < inliers.size(); i++)
+//	//{
+//	//	float a1 = mkeypoints[good_matches[inliers[i]].trainIdx].angle * PI / 360.0;
+//	//	float a2 = skeypoints[good_matches[inliers[i]].queryIdx].angle * PI / 360.0;
+//	//	double angle_diff = a1 - a2;
+//	//	if (fabs(angle_diff + angle) > angle_threshold)
+//	//	{
+//	//		return match_state::match_failed;
+//	//		inliers.erase(inliers.begin() + i);
+//	//		i--;
+//	//	}
+//	//}
+//
+//	//if (fabs(s - 1) > 0.5)
+//	//{
+//	//	return match_state::match_failed;
+//	//}
+//
+//	// fit affine model
+//	Eigen::VectorXd affine_model;
+//	double residual_threshold = 1.0; //pixel
+//	while (inliers.size() > 3)
+//	{
+//		// Build matrices to solve Ax = b problem:
+//		Eigen::VectorXd b(inliers.size() * 2);
+//		Eigen::MatrixXd A(inliers.size() * 2, 6);
+//		//b = candidates.col(6);
+//		for (int i = 0; i < (int)inliers.size(); ++i)
+//		{
+//			A(2 * i, 0) = 1.0;
+//			A(2 * i, 1) = skeypoints[good_matches[inliers[i]].queryIdx].pt.x;
+//			A(2 * i, 2) = skeypoints[good_matches[inliers[i]].queryIdx].pt.y;
+//			A(2 * i, 3) = 0.0;
+//			A(2 * i, 4) = 0.0;
+//			A(2 * i, 5) = 0.0;
+//			b(2 * i) = mkeypoints[good_matches[inliers[i]].trainIdx].pt.x;
+//
+//			A(2 * i + 1, 0) = 0.0;
+//			A(2 * i + 1, 1) = 0.0;
+//			A(2 * i + 1, 2) = 0.0;
+//			A(2 * i + 1, 3) = 1.0;
+//			A(2 * i + 1, 4) = skeypoints[good_matches[inliers[i]].queryIdx].pt.x;
+//			A(2 * i + 1, 5) = skeypoints[good_matches[inliers[i]].queryIdx].pt.y;
+//			b(2 * i + 1) = mkeypoints[good_matches[inliers[i]].trainIdx].pt.y;
+//		}
+//		// Compute least-squares solution:
+//		affine_model = (A.transpose()*A).inverse()*A.transpose()*b;
+//		Eigen::VectorXd resMat = A*affine_model - b;
+//		double max_residual = 0.0;
+//		int max_pos = 0;
+//		for (size_t i = 0; i < inliers.size(); i++)
+//		{
+//			double residual = sqrt(resMat[2 * i] * resMat[2 * i] + resMat[2 * i + 1] * resMat[2 * i + 1]);
+//			if (residual > max_residual)
+//			{
+//				max_residual = residual;
+//				max_pos = i;
+//			}
+//		}
+//
+//		if (max_residual > residual_threshold)
+//		{
+//			inliers.erase(inliers.begin() + max_pos);
+//		}
+//		else
+//		{
+//			break;
+//		}
+//	}
+//
+//	if (inliers.size() < 4)
+//	{
+//		return match_state::match_failed;
+//	}
+//
+//	//// check the elimilated matches
+//	//inliers.clear();
+//	//for (size_t i = 0; i < good_matches.size(); i++)
+//	//{
+//	//	Eigen::VectorXd b(2);
+//	//	Eigen::MatrixXd A(2, 6);
+//	//	A(0, 0) = 1.0;
+//	//	A(0, 1) = skeypoints[good_matches[i].queryIdx].pt.x;
+//	//	A(0, 2) = skeypoints[good_matches[i].queryIdx].pt.y;
+//	//	A(0, 3) = 0.0;
+//	//	A(0, 4) = 0.0;
+//	//	A(0, 5) = 0.0;
+//	//	b(0) = mkeypoints[good_matches[i].trainIdx].pt.x;
+//
+//	//	A(1, 0) = 0.0;
+//	//	A(1, 1) = 0.0;
+//	//	A(1, 2) = 0.0;
+//	//	A(1, 3) = 1.0;
+//	//	A(1, 4) = skeypoints[good_matches[i].queryIdx].pt.x;
+//	//	A(1, 5) = skeypoints[good_matches[i].queryIdx].pt.y;
+//	//	b(1) = mkeypoints[good_matches[i].trainIdx].pt.y;
+//
+//	//	Eigen::VectorXd resMat = A*affine_model - b;
+//	//	double residual = sqrt(resMat[0] * resMat[0] + resMat[1] * resMat[1]);
+//	//	if (residual <= residual_threshold)
+//	//	{
+//	//		inliers.push_back(i);
+//	//	}
+//	//}
+//
+//	// maybe a lot of correspondences are found, but we need only one correspondence for a tile
+//	// whose contrast is the largest?
+//	int slaveTemplateSize = 11;	// should be odd
+//	int semiTemplateSize = slaveTemplateSize / 2; // masterTemplateSize is odd
+//	int searchSize = 15;	// should be odd
+//	int semisearchSize = searchSize / 2; // masterTemplateSize is odd
+//	float maxId = inliers[0];
+//	float maxContrast = mkeypoints[good_matches[inliers[0]].trainIdx].response + skeypoints[good_matches[inliers[0]].queryIdx].response;
+//	for (int i = 1; i < (int)inliers.size(); ++i)
+//	{
+//		double c = mkeypoints[good_matches[inliers[i]].trainIdx].response + skeypoints[good_matches[inliers[i]].queryIdx].response;
+//
+//		int ix = (int)(mkeypoints[good_matches[inliers[i]].trainIdx].pt.x + 0.5);
+//		int iy = (int)(mkeypoints[good_matches[inliers[i]].trainIdx].pt.y + 0.5);
+//		int isx = (int)(skeypoints[good_matches[inliers[i]].queryIdx].pt.x + 0.5);
+//		int isy = (int)(skeypoints[good_matches[inliers[i]].queryIdx].pt.y + 0.5);
+//		if (maxContrast < c)
+//		{
+//			if (ix < semisearchSize || iy < semisearchSize || ix >= masterMat.cols - semisearchSize || iy >= masterMat.rows - semisearchSize)
+//			{
+//				continue;
+//			}
+//			if (isx < semiTemplateSize || isy < semiTemplateSize || isx >= slaveMat.cols - semiTemplateSize || isy >= slaveMat.rows - semiTemplateSize)
+//			{
+//				continue;
+//			}
+//
+//			maxContrast = c;
+//			maxId = inliers[i];
+//		}
+//	}
+//
+//	ossimDpt mc;
+//	ossimDpt sc;
+//	// least squares matching
+//	if (bLSM)
+//	{
+//
+//		int imx = (int)(mkeypoints[good_matches[maxId].trainIdx].pt.x + 0.5);
+//		int imy = (int)(mkeypoints[good_matches[maxId].trainIdx].pt.y + 0.5);
+//		int isx = (int)(skeypoints[good_matches[maxId].queryIdx].pt.x + 0.5);
+//		int isy = (int)(skeypoints[good_matches[maxId].queryIdx].pt.y + 0.5);
+//
+//		if (imx < semisearchSize || imy < semisearchSize || imx >= masterMat.cols - semisearchSize || imy >= masterMat.rows - semisearchSize)
+//		{
+//			semisearchSize = min(min(abs(imx), abs(imy)),
+//				min(abs(imx - (masterMat.cols - 1)), abs(imy - (masterMat.rows - 1))));
+//			searchSize = semisearchSize * 2 + 1;
+//		}
+//		if (isx < semiTemplateSize || isy < semiTemplateSize || isx >= slaveMat.cols - semiTemplateSize || isy >= slaveMat.rows - semiTemplateSize)
+//		{
+//			semiTemplateSize = min(min(abs(isx), abs(isy)),
+//				min(abs(isx - (slaveMat.cols - 1)), abs(isy - (slaveMat.rows - 1))));
+//
+//			slaveTemplateSize = semiTemplateSize * 2 + 1;
+//		}
+//		// matching precisely (subpixel)
+//		cv::Mat mSearchMat = masterMat(cv::Rect(imx - semisearchSize, imy - semisearchSize, searchSize, searchSize));
+//		cv::Mat sTemplateMat = slaveMat(cv::Rect(isx - semiTemplateSize, isy - semiTemplateSize, slaveTemplateSize, slaveTemplateSize));
+//		double lsm_model[8];
+//		// a1 a2 a3 b1 b2 b3 k1 k2
+//		// x' = a1*x + a2*y + a3
+//		// y' = b1*x + b2*y + b3
+//		// f(x,y) = k1*g(x',y') + k2
+//		//lsm_model[0] = 1.0;
+//		//lsm_model[1] = 0.0;
+//		//lsm_model[2] = 0.0 - semiTemplateSize + semisearchSize;
+//		//lsm_model[3] = 0.0;
+//		//lsm_model[4] = 1.0;
+//		//lsm_model[5] = 0.0 - semiTemplateSize + semisearchSize;
+//		//lsm_model[6] = 1.0;
+//		//lsm_model[7] = 0.0;
+//		lsm_model[0] = rigid_model[0];
+//		lsm_model[1] = rigid_model[1];
+//		lsm_model[2] = rigid_model[2];
+//		lsm_model[3] = -rigid_model[1];
+//		lsm_model[4] = rigid_model[0];
+//		lsm_model[5] = rigid_model[3];
+//		lsm_model[6] = 1.0;
+//		lsm_model[7] = 0.0;
+//		lsm_model[2] += lsm_model[0] * (isx - semiTemplateSize) + lsm_model[1] * (isy - semiTemplateSize) - (imx - semisearchSize);
+//		lsm_model[5] += lsm_model[3] * (isx - semiTemplateSize) + lsm_model[4] * (isy - semiTemplateSize) - (imy - semisearchSize);
+//
+//		if (bDebug)
+//		{
+//			cv::Mat img_outImage;
+//			drawTogether(sTemplateMat, mSearchMat, img_outImage);
+//			cv::imwrite("lsm0.png", img_outImage);
+//		}
+//		leastSquareMatching(sTemplateMat, mSearchMat, lsm_model);
+//		if (bDebug)
+//		{
+//			cv::Mat img_outImage;
+//			drawTogether(sTemplateMat, mSearchMat, img_outImage);
+//			cv::imwrite("lsm1.png", img_outImage);
+//		}
+//		int ix = semiTemplateSize;
+//		int iy = semiTemplateSize;
+//		double mx = lsm_model[0] * ix + lsm_model[1] * iy + lsm_model[2];
+//		double my = lsm_model[3] * ix + lsm_model[4] * iy + lsm_model[5];
+//		//cout << mx << ", " << my << endl;
+//		mc = ossimDpt(imx - semisearchSize + mx, imy - semisearchSize + my);
+//		sc = ossimDpt(isx, isy);
+//	}
+//	else
+//	{
+//		mc = ossimDpt(mkeypoints[good_matches[maxId].trainIdx].pt.x, mkeypoints[good_matches[maxId].trainIdx].pt.y);
+//		sc = ossimDpt(skeypoints[good_matches[maxId].queryIdx].pt.x, skeypoints[good_matches[maxId].queryIdx].pt.y);
+//	}
+//
+//	++matched_counter;
+//	double c = mkeypoints[good_matches[maxId].trainIdx].response + skeypoints[good_matches[maxId].queryIdx].response;
+//	tDpt = ossimTDpt(mc, sc, mkeypoints[good_matches[maxId].trainIdx].response);
+//
+//
+//	if (bDebug)
+//	{
+//		std::vector<double> scale_ratioList;
+//		std::vector<double> scale_diffList;
+//		std::vector<double> angle_diffList;
+//		for (size_t i = 0; i < inliers.size(); i++)
+//		{
+//			float s1 = mkeypoints[good_matches[inliers[i]].trainIdx].size;
+//			float s2 = skeypoints[good_matches[inliers[i]].queryIdx].size;
+//			scale_ratioList.push_back(s1 / (s2 + FLT_EPSILON));
+//			scale_diffList.push_back((s1 - s2) / sqrt(s1*s1 + s2*s2 + FLT_EPSILON));
+//
+//			float a1 = mkeypoints[good_matches[inliers[i]].trainIdx].angle;
+//			float a2 = skeypoints[good_matches[inliers[i]].queryIdx].angle;
+//			angle_diffList.push_back(a1 - a2);
+//		}
+//		//cout<<models[0]<<endl;
+//		vector< DMatch > final_matches;
+//		for (int i = 0; i < (int)inliers.size(); ++i)
+//		{
+//			final_matches.push_back(good_matches[inliers[i]]);
+//		}
+//		// Draw matches
+//		cv::Mat imgMatch;
+//		drawMatches(slaveMat, skeypoints, masterMat, mkeypoints, final_matches, imgMatch);
+//		cv::imwrite("result.png", imgMatch);
+//
+//		cv::Mat outMat;
+//		_prepareImgAndDrawKeylines(slaveMat,
+//			masterMat,
+//			tDpt,
+//			outMat,
+//			cv::Scalar(0, 0, 255));
+//		cv::imwrite("matched.png", outMat);
+//
+//
+//		ossimFilename matchedFolder = "matched";
+//		if (!matchedFolder.exists())
+//		{
+//			_mkdir(matchedFolder.c_str());
+//		}
+//		char buf[256];
+//		sprintf_s(buf, "%s\\matched%04d.png\0", matchedFolder.c_str(), matched_counter);
+//		cv::imwrite(buf, outMat);
+//		sprintf_s(buf, "%s\\result%04d_%d.png\0", matchedFolder.c_str(), matched_counter, (int)inliers.size());
+//		cv::imwrite(buf, imgMatch);
+//	}
+//
+//	//handlerM->close();
+//	return match_state::success;
+//}
 
 ossimIrect radiImageRegistration::getMasterRect(ossimProjection* sProjection, const GdalRasterApp& mGdalApp,
 												ossimIrect sRect, double slaveAccuracy)
@@ -2152,7 +3248,7 @@ struct MemoryStruct {
 
 ossimGpt TileXy2LonLat(double x, double y, int nZoomLevel)
 {
-	double scale = 1.0/(double)(1 << (8 + nZoomLevel));
+	double scale = 1.0/(double)(1 << (8 + nZoomLevel));	// 2^(-n-3)
 	double lon = x * 360.0 * scale - 180.0;
 	double t = exp((0.5 - y * scale) * 4.0 * PI);
 	double lat = asin((t - 1) / (t + 1))*180.0 / PI;
@@ -2162,7 +3258,7 @@ ossimGpt TileXy2LonLat(double x, double y, int nZoomLevel)
 
 ossimDpt LonLat2TileXy(ossimGpt gpt, int nZoomLevel)
 {
-	double scale = (double)(1 << (8 + nZoomLevel));
+	double scale = (double)(1 << (8 + nZoomLevel));	// 2^(n+3)
 	double sinLat = sin(gpt.lat * PI / 180.0);
 	double x = (gpt.lon + 180.0) * scale / 360.0;
 	double y = (0.5 - log((1.0 + sinLat) / (1.0 - sinLat)) / (4.0*PI))*scale;
@@ -2281,8 +3377,8 @@ bool radiImageRegistration::getGridFeaturesParallel(const ossimIrect& rect, radi
 		return false;
 	}
 
-	const ossim_int32 TILE_HEIGHT	= min(theTileSize, rect.height());
-	const ossim_int32 TILE_WIDTH	= min(theTileSize, rect.width());
+	const ossim_int32 TILE_HEIGHT	= min((unsigned int)theTileSize, rect.height());
+	const ossim_int32 TILE_WIDTH = min((unsigned int)theTileSize, rect.width());
 	const ossim_int32 START_LINE = rect.ul().y;
 	const ossim_int32 STOP_LINE  = rect.lr().y;
 	const ossim_int32 START_SAMP = rect.ul().x;
@@ -2391,6 +3487,10 @@ bool radiImageRegistration::getGridFeaturesParallel(const ossimIrect& rect, radi
 			ll_center, mimage_center, nearestZoomLevel, 1.0);
 		ossimGpt mlr_ll = masterLineSample2World(ossimDpt(nWidth, nHeight),
 			ll_center, mimage_center, nearestZoomLevel, 1.0);
+		ossimGpt mur_ll = masterLineSample2World(ossimDpt(nWidth, 0.0),
+			ll_center, mimage_center, nearestZoomLevel, 1.0);
+		ossimGpt mll_ll = masterLineSample2World(ossimDpt(0.0, nHeight),
+			ll_center, mimage_center, nearestZoomLevel, 1.0);
 		ossimGrect mllRect(mul_ll, mlr_ll);
 		//double ulLon = mul_ll.lon;
 		//double ulLat = mul_ll.lat;
@@ -2400,10 +3500,14 @@ bool radiImageRegistration::getGridFeaturesParallel(const ossimIrect& rect, radi
 
 		// get slave rect
 		ossimDpt p[4];
-		theSlaveProjection->worldToLineSample(mllRect.ul(), p[0]);
-		theSlaveProjection->worldToLineSample(mllRect.ur(), p[1]);
-		theSlaveProjection->worldToLineSample(mllRect.lr(), p[2]);
-		theSlaveProjection->worldToLineSample(mllRect.ll(), p[3]);
+		//theSlaveProjection->worldToLineSample(mllRect.ul(), p[0]);
+		//theSlaveProjection->worldToLineSample(mllRect.ur(), p[1]);
+		//theSlaveProjection->worldToLineSample(mllRect.lr(), p[2]);
+		//theSlaveProjection->worldToLineSample(mllRect.ll(), p[3]);
+		theSlaveProjection->worldToLineSample(mul_ll, p[0]);
+		theSlaveProjection->worldToLineSample(mur_ll, p[1]);
+		theSlaveProjection->worldToLineSample(mlr_ll, p[2]);
+		theSlaveProjection->worldToLineSample(mll_ll, p[3]);
 
 		double xmin = p[0].x;
 		double xmax = p[0].x;
@@ -2438,8 +3542,8 @@ bool radiImageRegistration::getGridFeaturesParallel(const ossimIrect& rect, radi
 		ossimDpt sul = srect.ul();
 		ossimDpt slr = srect.lr();
 
-		if (srect.hasNans() || !slaveApp.getCombinedRect2CvMatByte(srect, slaveMat, { 2, 3, 1 }, { .2126, .7152, .0722 }, ossimDpt(1.0, 1.0), 0.015))
-		//if (srect.hasNans() || !slaveApp.getRect2CvMatByte(srect, slaveMat, theSlaveBand, 1.0, 0.015))
+		//if (srect.hasNans() || !slaveApp.getCombinedRect2CvMatByte(srect, slaveMat, { 2, 3, 1 }, { .2126, .7152, .0722 }, ossimDpt(1.0, 1.0), 0.015))
+		if (srect.hasNans() || !slaveApp.getRect2CvMatByte(srect, slaveMat, theSlaveBand, 1.0, 0.015))
 		{
 			continue;
 		}
@@ -2448,6 +3552,8 @@ bool radiImageRegistration::getGridFeaturesParallel(const ossimIrect& rect, radi
 			continue;
 		}
 
+		int logoHeight = 0;
+
 		char url_buf[2048];
 		//string type = "Google";
 		string type = "Bing";
@@ -2455,22 +3561,32 @@ bool radiImageRegistration::getGridFeaturesParallel(const ossimIrect& rect, radi
 		if (0 == stricmp(type.c_str(), "Google"))
 		{
 			sprintf_s(url_buf, "https://maps.googleapis.com/maps/api/staticmap?center=%lf,%lf&zoom=%d&size=%dx%d&maptype=satellite",
-				ll_center.lat, ll_center.lon, nearestZoomLevel, nWidth, nWidth);
+				ll_center.lat, ll_center.lon, nearestZoomLevel, nWidth, nHeight + logoHeight * 2);
 			chunk = getDataFromUrl(url_buf, "http://127.0.0.1:8087");
 		}
 		else if (0 == stricmp(type.c_str(), "Bing"))
 		{
 			sprintf_s(url_buf, "http://dev.virtualearth.net/REST/v1/Imagery/Map/Aerial/%lf,%lf/%d?mapSize=%d,%d&key=AopmRHqd_NETfVAUdDQL9KTpveOTs5zX8T2nVS23AOVjbLnYRCoCZLb14jEhWbgj",
-				ll_center.lat, ll_center.lon, nearestZoomLevel, nWidth, nHeight);
+				ll_center.lat, ll_center.lon, nearestZoomLevel, nWidth, nHeight + logoHeight * 2);
+			//sprintf_s(url_buf, "http://api.tiles.mapbox.com/v4/mapbox.satellite/%lf,%lf,%d/%dx%d.png?access_token=pk.eyJ1IjoibG9vbmdmZWUiLCJhIjoiMXlmVE9CQSJ9.op9z2_EqoaEo8qMBo9i1xQ",
+			//	ll_center.lon, ll_center.lat, nearestZoomLevel, nWidth, nHeight + logoHeight * 2);
+			//sprintf_s(url_buf, "http://www.mapquestapi.com/staticmap/v4/getmap?type=sat&center=%lf,%lf&zoom=%d&size=%d,%d&scalebar=false&key=pk.eyJ1IjoibG9vbmdmZWUiLCJhIjoiMXlmVE9CQSJ9.op9z2_EqoaEo8qMBo9i1xQ",
+			//	ll_center.lon, ll_center.lat, nearestZoomLevel, nWidth, nHeight + logoHeight * 2);
 			chunk = getDataFromUrl(url_buf);
 		}
 
-		cv::Mat imgbuf = cv::Mat(nWidth, nHeight, CV_8UC3, chunk.memory);
+		cv::Mat imgbuf = cv::Mat(nHeight + logoHeight * 2, nWidth, CV_8UC3, chunk.memory);
 		//masterMat = cv::imdecode(imgbuf, CV_LOAD_IMAGE_COLOR);
 
 		cv::Mat masterMat;
 		found = false;
 		masterMat = cv::imdecode(imgbuf, CV_LOAD_IMAGE_GRAYSCALE);
+
+		if (logoHeight > 0)
+		{
+			// trim logo
+			masterMat = masterMat(cv::Rect(0, logoHeight, nWidth, nHeight));
+		}
 		if (countNonZero(masterMat) < 1)
 		{
 			continue;
@@ -2480,6 +3596,8 @@ bool radiImageRegistration::getGridFeaturesParallel(const ossimIrect& rect, radi
 		double nNewHeight = masterMat.rows * scale;
 
 		cv::resize(masterMat, masterMat, cv::Size(nNewWidth, nNewHeight));//resize image
+
+		slaveApp.stretchRect2Byte<GByte>(nNewWidth, nNewHeight, masterMat.data, masterMat.data, 0.015);
 
 		if (chunk.memory)
 			free(chunk.memory);
@@ -3471,7 +4589,7 @@ bool radiImageRegistration::getAllFeatures()
 		// This is because thread 0 tells us exactly how many characters we were send.
 	}
 
-	theThreadNum = min(theThreadNum, numForTask);
+	theThreadNum = min(theThreadNum, (unsigned int)numForTask);
 	if (rank == 0)
 	{
 		cout << "using " << theThreadNum << " threads..." << endl;

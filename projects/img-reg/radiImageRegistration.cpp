@@ -335,42 +335,6 @@ bool radiImageRegistration::buildRenderer(
 }
 
 
-bool kpt_compare(const cv::KeyPoint& d1, const cv::KeyPoint& d2)
-{
-	return d1.response > d2.response;
-}
-
-void normalization(const cv::Mat& inMat, cv::Mat& outMat)
-{
-	cv::Scalar mean_value;// = cv::mean(inMat);
-	cv::Mat stdDevMat;
-	cv::meanStdDev(inMat, mean_value, stdDevMat);
-	cv::divide(inMat-mean_value, stdDevMat, outMat);
-}
-
-void findGoodMatches(vector< vector< DMatch >  > all_matches_2, vector< DMatch >& good_matches, float nndrRatio = 0.80f)
-{
-	good_matches.clear();
-	//for (int i = 0; i < (int)matches.size(); i++)
-	//{
-	//	good_matches.push_back(matches[i][0]);
-	//}
-	good_matches.reserve(all_matches_2.size());
-
-	for (size_t i = 0; i < all_matches_2.size(); ++i)
-	{ 
-		if (all_matches_2[i].size() < 2)
-			continue;
-
-		const DMatch &m1 = all_matches_2[i][0];
-		const DMatch &m2 = all_matches_2[i][1];
-
-		if(m1.distance <= nndrRatio * m2.distance)
-			good_matches.push_back(m1);     
-	}
-}
-
-
 // loong
 ossimIpt radiImageRegistration::slave2master(ossimProjection* slaveProjection,
 									ossimProjection* masterProjection,
@@ -592,7 +556,7 @@ bool radiImageRegistration::execute()
 	// check point type
 	ossimRefPtr<ossimImageHandler> mHandler;
 	ossimRefPtr<ossimProjection> mProjection;
-	if (theMaster.ext().upcase() != "SHP")
+	if (theMaster.ext().upcase() != "SHP" && !useOnline())
 	{ 
 		mHandler = ossimImageHandlerRegistry::instance()->open(theMaster);
 		if (NULL == mHandler.get())
@@ -713,7 +677,7 @@ bool radiImageRegistration::execute()
 	{
 		theAreaOfInterest = theAreaOfInterest.clipToRect(handlerS->getBoundingRect(0));
 	}
-	if (theMaster.ext().upcase() != "SHP" &&
+	if (theMaster.ext().upcase() != "SHP" && !useOnline() &&
 		!(NULL == mHandler->getImageGeometry().get() || NULL == (mProjection = mHandler->getImageGeometry()->getProjection()).get()))
 	{
 		ossimIrect mBoundary = mHandler->getBoundingRect(0);
@@ -746,7 +710,9 @@ bool radiImageRegistration::execute()
 			}
 			//mul = mul + ossimDpt(-theSlaveAccuracy*2, -theSlaveAccuracy*2);
 			//mlr = mlr + ossimDpt(theSlaveAccuracy*2, theSlaveAccuracy*2);
-			ossimIrect mBoundary2s(mul.x, mul.y, mlr.x, mlr.y);
+			//ossimIrect mBoundary2s(mul.x, mul.y, mlr.x, mlr.y);
+			double accuracy = 200;
+			ossimIrect mBoundary2s(mul.x - accuracy, mul.y - accuracy, mlr.x + accuracy, mlr.y + accuracy);
 			theAreaOfInterest = theAreaOfInterest.clipToRect(mBoundary2s);
 		}
 	}
@@ -1270,186 +1236,6 @@ void radiImageRegistration::writePoints(const ossimFilename& filename, ossimMapP
 //	return match_state::success;
 //}
 
-VlSiftKeypoint cov2sift(const VlCovDetFeature &feature)
-{
-	VlSiftKeypoint siftKeyPoint;
-	siftKeyPoint.x = feature.frame.x;
-	siftKeyPoint.y = feature.frame.y;
-	siftKeyPoint.sigma = feature.laplacianScaleScore;
-	siftKeyPoint.contrast = feature.peakScore;
-	siftKeyPoint.s = feature.edgeScore;
-	return siftKeyPoint;
-}
-
-void VLFeatCovdet(const cv::Mat& inMat, vector<KeyPoint>& kpts, cv::Mat& descriptors)
-{
-	//// create a detector object
-	//VlCovDet * covdet = vl_covdet_new(VlCovDetMethod::VL_COVDET_METHOD_HESSIAN_LAPLACE);
-	//// set various parameters (optional)
-	//vl_covdet_set_first_octave(covdet, -1); // start by doubling the image resolution
-	////vl_covdet_set_octave_resolution(covdet, octaveResolution);
-	////vl_covdet_set_peak_threshold(covdet, peakThreshold);
-	////vl_covdet_set_edge_threshold(covdet, edgeThreshold);
-
-
-	//vl_sift_pix *ImageData = new vl_sift_pix[inMat.rows * inMat.cols];
-
-	//int noctaves = 2, nlevels = 4, o_min = 0;
-	//unsigned char *Pixel;
-	//for (int i = 0; i<inMat.rows; i++)
-	//{
-	//	for (int j = 0; j<inMat.cols; j++)
-	//	{
-	//		Pixel = (unsigned char*)(inMat.data + i*inMat.cols + j);
-	//		ImageData[i*inMat.cols + j] = *(Pixel);
-	//	}
-	//}
-
-	//// process the image and run the detector
-	//vl_covdet_put_image(covdet, ImageData, inMat.cols, inMat.rows);
-	//vl_covdet_detect(covdet);
-	//// drop features on the margin (optional)
-	////vl_covdet_drop_features_outside(covdet, boundaryMargin);
-	//// compute the affine shape of the features (optional)
-	//vl_covdet_extract_affine_shape(covdet);
-	//// compute the orientation of the features (optional)
-	//vl_covdet_extract_orientations(covdet);
-	//// get feature frames back
-	//vl_size numFeatures = vl_covdet_get_num_features(covdet);
-	//VlCovDetFeature const * feature = vl_covdet_get_features(covdet);
-	//// get normalized feature appearance patches (optional)
-	//vl_size w = 2 * patchResolution + 1;
-	//for (i = 0; i < numFeatures; ++i) {
-	//	float * patch = malloc(w*w*sizeof(*desc));
-	//	vl_covdet_extract_patch_for_frame(covdet,
-	//		patch,
-	//		patchResolution,
-	//		patchRelativeExtent,
-	//		patchRelativeSmoothing,
-	//		feature[i].frame);
-	//	// do something with patch
-	//}
-
-
-
-
-	int noctaves = 2, octaveResolution = 4, o_min = 0;
-
-	VlSiftFilt *SiftFilt = NULL;
-	SiftFilt = vl_sift_new(inMat.cols, inMat.rows, noctaves, octaveResolution, o_min);
-	//VlCovDet *vl_covDet = vl_covdet_new(VlCovDetMethod::VL_COVDET_METHOD_HESSIAN_LAPLACE);
-	VlCovDet *vl_covDet = vl_covdet_new(VlCovDetMethod::VL_COVDET_METHOD_HESSIAN_LAPLACE);
-	vl_sift_pix *ImageData = new vl_sift_pix[inMat.rows * inMat.cols];
-
-	double peakThreshold = 400.0;
-	double edgeThreshold = 10.0;
-	unsigned char *Pixel;
-	for (int i = 0; i<inMat.rows; i++)
-	{
-		for (int j = 0; j<inMat.cols; j++)
-		{
-			Pixel = (unsigned char*)(inMat.data + i*inMat.cols + j);
-			ImageData[i*inMat.cols + j] = *(Pixel);
-		}
-	}
-
-	vl_size patchResolution = 5;
-	double patchRelativeExtent = 3;
-	double patchRelativeSmoothing = 1.6;
-
-	// set various parameters (optional)
-	vl_covdet_set_first_octave(vl_covDet, -1); // start by doubling the image resolution
-	vl_covdet_set_first_octave(vl_covDet, o_min); // start by doubling the image resolution
-	//vl_covdet_set_octave_resolution(vl_covDet, octaveResolution);
-	vl_covdet_set_peak_threshold(vl_covDet, peakThreshold);
-	vl_covdet_set_edge_threshold(vl_covDet, edgeThreshold);
-
-	int nKeyPoint = 0;
-	int idx = 0;
-	vl_covdet_put_image(vl_covDet, ImageData, inMat.cols, inMat.rows);
-
-
-	vl_sift_process_first_octave(SiftFilt, ImageData);
-
-	vl_covdet_detect(vl_covDet);
-	int nkeys = vl_covdet_get_num_features(vl_covDet);
-	VlCovDetFeature const * features = (VlCovDetFeature const * )vl_covdet_get_features(vl_covDet);
-	for (int i = 0; i<nkeys; i++)
-	{
-		VlCovDetFeature feature = features[i];
-		cv::KeyPoint kpt(feature.frame.x, feature.frame.y, feature.peakScore);
-		idx++;
-		//计算并遍历每个点的方向
-		vl_size angleCount;
-		VlCovDetFeatureOrientation * angles = vl_covdet_extract_orientations_for_frame(vl_covDet, &angleCount, feature.frame);
-
-		for (int j = 0; j<angleCount; j++)
-		{
-			double TemptAngle = angles[j].angle;
-			VlSiftKeypoint TemptKeyPoint = cov2sift(feature);
-
-			//printf("%d: %f\n",j,TemptAngle);
-			//计算每个方向的描述
-			cv::Mat aDescriptor = cv::Mat(cv::Size(128, 1), CV_32FC1);
-			//float *Descriptors=new float[128];
-			vl_sift_calc_keypoint_descriptor(SiftFilt, (float*)aDescriptor.data, &TemptKeyPoint, TemptAngle);
-			//vl_size w = 2 * patchResolution + 1;
-			//cv::Mat aDescriptor = cv::Mat(cv::Size(w*w, 1), CV_32FC1);
-			////cv::Mat aDescriptor = cv::Mat(cv::Size(128, 1), CV_32FC1);
-			vl_covdet_extract_patch_for_frame(vl_covDet,
-				(float*)aDescriptor.data,
-				patchResolution,
-				patchRelativeExtent,
-				patchRelativeSmoothing,
-				feature.frame);
-
-
-			//float *Descriptors=new float[128];
-			//vl_sift_calc_keypoint_descriptor(SiftFilt, (float*)aDescriptor.data, &TemptKeyPoint, TemptAngle);
-			descriptors.push_back(aDescriptor);
-			kpt.angle = TemptAngle;
-			kpt.response = TemptKeyPoint.contrast;
-			kpts.push_back(kpt);
-		}
-	}
-
-	vl_sift_delete(SiftFilt);
-	vl_covdet_delete(vl_covDet);
-	delete[]ImageData;
-	ImageData = NULL;
-}
-
-void OrbDetector(const cv::Mat& inMat, vector<KeyPoint>& kpts, cv::Mat& descriptors)
-{
-	int numKeyPoints = 500;
-	float distThreshold = 15.0;
-	//"FAST" – FastFeatureDetector
-	//"STAR" – StarFeatureDetector
-	//"SIFT" – SiftFeatureDetector
-	//"SURF" – SurfFeatureDetector
-	//"ORB" – OrbFeatureDetector
-	//"MSER" – MserFeatureDetector
-	//"GFTT" – GoodFeaturesToTrackDetector
-	//"HARRIS" – GoodFeaturesToTrackDetector with Harris detector enabled
-	//"Dense" – DenseFeatureDetector
-	//"SimpleBlob" – SimpleBlobDetector
-	Ptr<FeatureDetector> detector = FeatureDetector::create("ORB");
-	detector->detect(inMat, kpts);
-	//cv::OrbFeatureDetector* detector = new cv::OrbFeatureDetector(numKeyPoints);
-	//cv::OrbDescriptorExtractor* extractor = new cv::OrbDescriptorExtractor;
-	//detector->detect(inMat, kpts);
-	//extractor->compute(inMat, kpts, descriptors);
-
-	//"SIFT" – SiftDescriptorExtractor
-	//"SURF" – SurfDescriptorExtractor
-	//"ORB" – OrbDescriptorExtractor
-	//"BRIEF" – BriefDescriptorExtractor
-	Ptr<DescriptorExtractor> extractor = DescriptorExtractor::create("SIFT");
-	extractor->compute(inMat, kpts, descriptors);
-
-	//delete detector;
-	//delete extractor;
-}
 
 void radiImageRegistration::VLFeatSift(const cv::Mat& inMat, vector<KeyPoint>& kpts, cv::Mat& descriptors)
 {
@@ -1469,7 +1255,7 @@ void radiImageRegistration::VLFeatSift(const cv::Mat& inMat, vector<KeyPoint>& k
 	VlSiftFilt *SiftFilt=NULL;
 	SiftFilt=vl_sift_new(inMat.cols, inMat.rows, noctaves, nlevels, o_min);
 	// default
-	double edge_thresh = 10 ;  //-1 will use the default (as in matlab)
+	double edge_thresh = 5 ;  //-1 will use the default (as in matlab)
 	double peak_thresh = 0.04;// 0.04;
 	//double edge_thresh = -1;  //-1 will use the default (as in matlab)
 	//double peak_thresh = -1;
@@ -1549,219 +1335,6 @@ void radiImageRegistration::VLFeatSift(const cv::Mat& inMat, vector<KeyPoint>& k
 	vl_sift_delete(SiftFilt);
 	delete []ImageData;
 	ImageData=NULL;
-}
-
-static void _prepareImgAndDrawKeylines( const cv::Mat& img1, 
-									   const cv::Mat& img2, 
-									   ossimTDpt tpt,
-									   cv::Mat& outImg,
-									   const cv::Scalar& singlePointColor)
-{
-	Size size( img1.cols + img2.cols, MAX(img1.rows, img2.rows) );
-
-	outImg.create( size, CV_MAKETYPE(img1.depth(), 3) );
-	cv::Mat outImg1 = outImg( Rect(0, 0, img1.cols, img1.rows) );
-	cv::Mat outImg2 = outImg( Rect(img1.cols, 0, img2.cols, img2.rows) );
-	if( img1.type() == CV_8U )
-		cvtColor( img1, outImg1, CV_GRAY2BGR );
-	else
-		img1.copyTo( outImg1 );
-
-	if( img2.type() == CV_8U )
-		cvtColor( img2, outImg2, CV_GRAY2BGR );
-	else
-		img2.copyTo( outImg2 );
-	// draw keypoints
-
-	ossimDpt slavePt = tpt.getSlavePoint();
-	ossimDpt masterPt = tpt.getMasterPoint();
-	int semiCrossWidth = 5;
-	cv::line(outImg1, cv::Point(slavePt.x - semiCrossWidth, slavePt.y), cv::Point(slavePt.x + semiCrossWidth, slavePt.y),
-		singlePointColor, 1);
-	cv::line(outImg1, cv::Point(slavePt.x, slavePt.y - semiCrossWidth), cv::Point(slavePt.x, slavePt.y + semiCrossWidth),
-		singlePointColor, 1);
-
-	cv::line(outImg2, cv::Point(masterPt.x - semiCrossWidth, masterPt.y), cv::Point(masterPt.x + semiCrossWidth, masterPt.y),
-		singlePointColor, 1);
-	cv::line(outImg2, cv::Point(masterPt.x, masterPt.y - semiCrossWidth), cv::Point(masterPt.x, masterPt.y + semiCrossWidth),
-		singlePointColor, 1);
-}
-
-static void drawTogether(const cv::Mat& img1,
-	const cv::Mat& img2,
-	cv::Mat& outImg)
-{
-	cv::Mat outImg1;
-	cv::Mat outImg2;
-	Size size(img1.cols + img2.cols, MAX(img1.rows, img2.rows));
-
-	outImg = cv::Mat(size, CV_MAKETYPE(img1.depth(), 3), cv::Scalar(0,0,0));
-	
-	outImg1 = outImg(Rect(0, 0, img1.cols, img1.rows));
-	outImg2 = outImg(Rect(img1.cols, 0, img2.cols, img2.rows));
-
-	if (img1.type() == CV_8U)
-		cvtColor(img1, outImg1, CV_GRAY2BGR);
-	else
-		img1.copyTo(outImg1);
-
-	if (img2.type() == CV_8U)
-		cvtColor(img2, outImg2, CV_GRAY2BGR);
-	else
-		img2.copyTo(outImg2);
-}
-
-float get_sub_pix(cv::Mat const &img, cv::Point2f const &pt)
-{
-	int x = static_cast<int>(pt.x);
-	int y = static_cast<int>(pt.y);
-
-	int x0 = cv::borderInterpolate(x, img.cols, cv::BORDER_REPLICATE);
-	int x1 = cv::borderInterpolate(x + 1, img.cols, cv::BORDER_REPLICATE);
-	int y0 = cv::borderInterpolate(y, img.rows, cv::BORDER_REPLICATE);
-	int y1 = cv::borderInterpolate(y + 1, img.rows, cv::BORDER_REPLICATE);
-
-	float a = pt.x - x;
-	float c = pt.y - y;
-
-	float x1_interpolate = (img.at<uchar>(y0, x0) * (1.0 - a)
-		+ img.at<uchar>(y0, x1) * a);
-	float x2_interpolate = (img.at<uchar>(y1, x0) * (1.0 - a)
-		+ img.at<uchar>(y1, x1) * a);
-	float target = x1_interpolate * (1.0 - c) + x2_interpolate * c;
-
-	return target;
-}
-
-struct LSM_STRUCT
-{
-	cv::Mat templateMat;
-	cv::Mat searchMat;
-};
-
-void funcErrorEquation(double *param, double *hx, int nparameter, int nequation, void *adata)
-{
-	// a1 a2 a3 b1 b2 b3 k1 k2
-	// x' = a1*x + a2*y + a3
-	// y' = b1*x + b2*y + b3
-	// f(x,y) = k1*g(x',y') + k2
-	LSM_STRUCT *pThis = (LSM_STRUCT*)adata;
-	int nX = pThis->templateMat.cols;
-	int nY = pThis->templateMat.rows;
-
-	assert(nequation == (nX*nY));
-
-	int pos = 0;
-	int i;
-	double pstep_scale = 1e-4;
-	static double den = 0.5 / pstep_scale;
-
-	for (size_t ix = 0; ix < nX; ix++)
-	{
-		for (size_t iy = 0; iy < nY; iy++)
-		{
-			float svalue = get_sub_pix(pThis->templateMat, cv::Point2f(ix, iy));
-			double mx = param[0] * ix + param[1] * iy + param[2];
-			double my = param[3] * ix + param[4] * iy + param[5];
-			float mvalue = get_sub_pix(pThis->searchMat, cv::Point2f(mx, my));
-			hx[pos++] = (svalue - param[6] * mvalue - param[7]);
-		}
-	}
-}
-
-void jacErrorEquation(double *param, double *j, int nparameter, int nequation, void *adata)
-{
-	// a1 a2 a3 b1 b2 b3 k1 k2
-	// x' = a1*x + a2*y + a3
-	// y' = b1*x + b2*y + b3
-	// f(x,y) = k1*g(x',y') + k2
-	LSM_STRUCT *pThis = (LSM_STRUCT*)adata;
-	int nX = pThis->templateMat.cols;
-	int nY = pThis->templateMat.rows;
-
-	assert(nequation == (nX*nY));
-
-	int pos = 0;
-	int i;
-
-	double pstep_scale = 1e-4;
-	static double den = 0.5 / pstep_scale;
-	int c = 0;
-	for (size_t ix = 0; ix < nX; ix++)
-	{
-		for (size_t iy = 0; iy < nY; iy++)
-		{
-			float svalue = get_sub_pix(pThis->templateMat, cv::Point2f(ix, iy));
-			for (int p = 0; p<6; ++p)
-			{
-				// a1 a2 a3 b1 b2 b3
-				double middle = param[p];
-				param[p] = middle + pstep_scale;
-				double mx = param[0] * ix + param[1] * iy + param[2];
-				double my = param[3] * ix + param[4] * iy + param[5];
-				float mvalue1 = get_sub_pix(pThis->searchMat, cv::Point2f(mx, my));
-				float res1 = svalue - param[6] * mvalue1 - param[7];
-
-				param[p] = middle - pstep_scale;
-				mx = param[0] * ix + param[1] * iy + param[2];
-				my = param[3] * ix + param[4] * iy + param[5];
-				float mvalue2 = get_sub_pix(pThis->searchMat, cv::Point2f(mx, my));
-				float res2 = svalue - param[6] * mvalue2 - param[7];
-
-				j[c++] = (res1 - res2)*den;
-				param[p] = middle;
-			}
-			double mx = param[0] * ix + param[1] * iy + param[2];
-			double my = param[3] * ix + param[4] * iy + param[5];
-			float mvalue = get_sub_pix(pThis->searchMat, cv::Point2f(mx, my));
-
-			// k1
-			j[c++] = -mvalue;
-			// k2
-			j[c++] = -1.0;
-		}
-	}
-}
-
-void leastSquareMatching(cv::Mat templateMat, cv::Mat searchMat, double lsm_model[8])
-{
-	//cv::Mat img_G0;
-	//cv::Mat img_G1;
-
-	//cv::GaussianBlur(templateMat, img_G0, Size(3, 3), 1.6);
-	////cv::GaussianBlur(img_G0, img_G1, Size(3, 3), 0);
-	////templateMat = img_G0 - img_G1;
-	//templateMat = cv::abs(templateMat - img_G0);
-	////normalize(templateMat, templateMat, 255, 0, CV_MINMAX);
-
-	//cv::GaussianBlur(searchMat, img_G0, Size(3, 3), 1.6);
-	////cv::GaussianBlur(img_G0, img_G1, Size(3, 3), 0);
-	////searchMat = img_G0 - img_G1;
-	//searchMat = cv::abs(searchMat - img_G0);
-	////normalize(searchMat, searchMat, 255, 0, CV_MINMAX);
-
-	int nX = templateMat.cols;
-	int nY = templateMat.rows;
-
-	int nparam = 8;
-	
-	arma::vec outParameters(nparam);
-	double *x = new double[nX*nY];
-	for (int i = 0; i<nX*nY; i++) x[i] = 0.0;
-
-	double opts[LM_OPTS_SZ], info[LM_INFO_SZ];
-	opts[0] = LM_INIT_MU; opts[1] = 1E-15; opts[2] = 1E-15; opts[3] = 1E-20;
-	opts[4] = LM_DIFF_DELTA; // relevant only if the Jacobian is approximated using finite differences; specifies forward differencing 
-
-	//int ret = dlevmar_dif(funcErrorEquation, p, x, nparam, nX, 1000, opts, info, NULL, NULL, this);  // no Jacobian
-	LSM_STRUCT lsm_data;
-	lsm_data.searchMat = searchMat;
-	lsm_data.templateMat = templateMat;
-	int ret = dlevmar_der(funcErrorEquation, jacErrorEquation, lsm_model, x, nparam, nX*nY, 1000, opts, info, NULL, NULL, &lsm_data); // with analytic Jacobian
-	delete []x;
-	x = NULL;
-	int ix = nX / 2;
-	int iy = nY / 2;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -3017,11 +2590,19 @@ void leastSquareMatching(cv::Mat templateMat, cv::Mat searchMat, double lsm_mode
 //	return match_state::success;
 //}
 
-int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::Mat& masterMat, ossimTDpt& tDpt,
+int radiImageRegistration::runMatch(const cv::Mat& slaveMat, const cv::Mat& masterMat, ossimTDpt& tDpt,
 	void* pData, bool bDebug)
 {
-
 	bool bLSM = true;
+	float nndrRatio = 0.75f;
+	float angle_diff_threshold = 20.0f / 180.0f * VL_PI;
+	double pos_threshold = 0.5;
+	double affine_residual_threshold = 1.0; //pixel
+	float std_scale_diff_threshold = 0.2f;
+	float scale_ratio_threshold = 0.7f;	// 0.8f
+	int count_pos = 0;
+	int matched_counts[10];
+
 	radiImageRegistration* pThis = (radiImageRegistration*)pData;
 	// detect corners
 	//cv::initModule_features2d();
@@ -3071,40 +2652,16 @@ int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::M
 	matcher.knnMatch(sdescriptors, mdescriptors, matches, 2);
 
 	// inverse mathcing
-	vector< vector< DMatch >  > matches2;
-	matcher.knnMatch(mdescriptors, sdescriptors, matches2, 2);
+	vector< vector< DMatch >  > matches_inverse;
+	matcher.knnMatch(mdescriptors, sdescriptors, matches_inverse, 2);
 
 	// "cross-matching" and "first and second minimum distances ratio test"
 	vector< DMatch > good_matches;
-	for (size_t i = 0; i < matches.size(); i++)
-	{
-		if (matches[i].size() != 2)
-		{
-			continue;
-		}
-		if (matches[i][0].distance / (matches[i][1].distance + FLT_EPSILON) < 0.6)
-		{
-			good_matches.push_back(matches[i][0]);
-			continue;
-		}
-		int queryIdx = matches[i][0].queryIdx;
-		int trainIdx = matches[i][0].trainIdx;
-		for (size_t j = 0; j < matches2.size(); j++)
-		{
-			int queryIdx2 = matches2[j][0].trainIdx;
-			int trainIdx2 = matches2[j][0].queryIdx;
-
-			if (queryIdx == queryIdx2 && trainIdx == trainIdx2)
-			{
-				good_matches.push_back(matches[i][0]);
-				break;
-			}
-		}
-	}
-
+	findGoogdMatches(matches, matches_inverse, good_matches, nndrRatio, true);
+	vector< DMatch > good_matches0 = good_matches;
+	
+	matched_counts[count_pos++] = (int)good_matches.size();
 	// eliminating by scale
-	float std_scale_diff_threshold = 0.2f;
-	float scale_ratio_threshold = 0.8f;
 	for (size_t i = 0; i < good_matches.size();)
 	{
 		float s1 = mkeypoints[good_matches[i].trainIdx].size;
@@ -3118,13 +2675,14 @@ int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::M
 		i++;
 	}
 
+	matched_counts[count_pos++] = (int)good_matches.size();
 	if (good_matches.size() < 4)
 	{
 		return match_state::match_failed;
 	}
 
 	// find max rotation angle
-	const int angle_bins = 20;
+	const int angle_bins = 36;
 	int angle_hist[angle_bins] = { 0 };
 	float angle_bin_length = 2.0f*VL_PI / (float)angle_bins;
 	std::vector<double> angle_diffList;
@@ -3164,7 +2722,6 @@ int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::M
 	}
 
 	// eliminating by rotation
-	float angle_diff_threshold = 20.0f / 180.0f * VL_PI;
 	for (size_t i = 0; i < good_matches.size();)
 	{
 		float a1 = mkeypoints[good_matches[i].trainIdx].angle;
@@ -3182,35 +2739,10 @@ int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::M
 		}
 		i++;
 	}
+	matched_counts[count_pos++] = (int)good_matches.size();
 
 	// eliminating repeated points
-	double pos_threshold = 2.0;
-	vector< DMatch > existed_matches;
-	for (size_t i = 0; i < good_matches.size();)
-	{
-		bool bExisted = false;
-		for (size_t j = 0; j < existed_matches.size(); j++)
-		{
-			if (fabs(mkeypoints[existed_matches[j].trainIdx].pt.x - mkeypoints[good_matches[i].trainIdx].pt.x) < pos_threshold
-				&& fabs(skeypoints[existed_matches[j].queryIdx].pt.x - skeypoints[good_matches[i].queryIdx].pt.x) < pos_threshold)
-			{
-				bExisted = true;
-				break;
-			}
-		}
-
-		if (!bExisted)
-		{
-			existed_matches.push_back(good_matches[i]);
-		}
-		else
-		{
-			good_matches.erase(good_matches.begin() + i);
-			continue;
-		}
-
-		i++;
-	}
+	removeRepeated(skeypoints, mkeypoints, good_matches, pos_threshold);
 
 
 	if (good_matches.size() < 4)
@@ -3292,55 +2824,56 @@ int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::M
 	//}
 
 	vector<int> inliers;
-	vector<double> rigid_model = mylib::rigidRansac(skeypoints, mkeypoints, good_matches, inliers, 0.9);
+	vector<double> rigid_model = mylib::rigidRansac(skeypoints, mkeypoints, good_matches, inliers, 0.85);
+	matched_counts[count_pos++] = (int)inliers.size();
 
-	//double s = sqrt(rigid_model[0] * rigid_model[0] + rigid_model[1] * rigid_model[1]);
-	////double angle = atan(rigid_model[1] / rigid_model[0]);
-	//double arcsin = rigid_model[1] / s;
-	//double arccos = rigid_model[0] / s;
-	//double angle;
-	//if (arccos >= 0)
-	//{
-	//	angle = asin(arcsin);
-	//}
-	//else
-	//{
-	//	if (arcsin >= 0)
-	//	{
-	//		angle = PI - asin(arcsin);
-	//	}
-	//	else if (arcsin < 0)
-	//	{
-	//		angle = -PI - asin(arcsin);
-	//	}
-	//}
+	double s = sqrt(rigid_model[0] * rigid_model[0] + rigid_model[1] * rigid_model[1]);
+	//double angle = atan(rigid_model[1] / rigid_model[0]);
+	double arcsin = rigid_model[1] / s;
+	double arccos = rigid_model[0] / s;
+	double angle;
+	if (arccos >= 0)
+	{
+		angle = asin(arcsin);
+	}
+	else
+	{
+		if (arcsin >= 0)
+		{
+			angle = PI - asin(arcsin);
+		}
+		else if (arcsin < 0)
+		{
+			angle = -PI - asin(arcsin);
+		}
+	}
 
-	//double angle_threshold = 0.5; // rad -- 28.6478897565deg
-	//if (fabs(angle) > PI*0.25)
-	//{
-	//	return match_state::match_failed;
-	//}
-	//for (size_t i = 0; i < inliers.size(); i++)
-	//{
-	//	float a1 = mkeypoints[good_matches[inliers[i]].trainIdx].angle * PI / 360.0;
-	//	float a2 = skeypoints[good_matches[inliers[i]].queryIdx].angle * PI / 360.0;
-	//	double angle_diff = a1 - a2;
-	//	if (fabs(angle_diff + angle) > angle_threshold)
-	//	{
-	//		return match_state::match_failed;
-	//		inliers.erase(inliers.begin() + i);
-	//		i--;
-	//	}
-	//}
+	double angle_threshold = 0.5; // rad -- 28.6478897565deg
+	if (fabs(angle) > PI*0.25)
+	{
+		return match_state::match_failed;
+	}
+	for (size_t i = 0; i < inliers.size(); i++)
+	{
+		float a1 = mkeypoints[good_matches[inliers[i]].trainIdx].angle * PI / 360.0;
+		float a2 = skeypoints[good_matches[inliers[i]].queryIdx].angle * PI / 360.0;
+		double angle_diff = a1 - a2;
+		if (fabs(angle_diff + angle) > angle_threshold)
+		{
+			return match_state::match_failed;
+			inliers.erase(inliers.begin() + i);
+			i--;
+		}
+	}
 
-	//if (fabs(s - 1) > 0.5)
-	//{
-	//	return match_state::match_failed;
-	//}
+	if (fabs(s - 1) > 0.5)
+	{
+		return match_state::match_failed;
+	}
 
 	// fit affine model
-	double residual_threshold = 1.0; //pixel
-	while (inliers.size() > 3)
+	Eigen::VectorXd affine_model;
+	while (inliers.size() >= 4)
 	{
 		// Build matrices to solve Ax = b problem:
 		Eigen::VectorXd b(inliers.size() * 2);
@@ -3365,9 +2898,8 @@ int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::M
 			b(2 * i + 1) = mkeypoints[good_matches[inliers[i]].trainIdx].pt.y;
 		}
 		// Compute least-squares solution:
-		Eigen::VectorXd X;
-		X = (A.transpose()*A).inverse()*A.transpose()*b;
-		Eigen::VectorXd resMat = A*X - b;
+		affine_model = (A.transpose()*A).inverse()*A.transpose()*b;
+		Eigen::VectorXd resMat = A*affine_model - b;
 		double max_residual = 0.0;
 		int max_pos = 0;
 		for (size_t i = 0; i < inliers.size(); i++)
@@ -3380,40 +2912,7 @@ int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::M
 			}
 		}
 
-		////vector<cv::Point2f> srcTri(inliers.size());
-		////vector<cv::Point2f> dstTri(inliers.size());
-		////for (size_t i = 0; i < inliers.size(); i++)
-		////{
-		////	srcTri[i] = skeypoints[good_matches[inliers[i]].queryIdx].pt;
-		////	dstTri[i] = mkeypoints[good_matches[inliers[i]].trainIdx].pt;
-		////}
-		/////// Get the Affine Transform
-		////// a00 a01 b00
-		////// a10 a11 b10
-		////cv::estimateAffine3D
-		////cv::Mat affine_model = cv::getAffineTransform(srcTri, dstTri);
-
-		//double max_residual = 0.0;
-		//int max_pos = 0;
-		//for (size_t i = 0; i < inliers.size(); i++)
-		//{
-		//	cv::Mat src_mat(3, 1, CV_32FC1);
-		//	src_mat.at<float>(0) = srcTri[i].x;
-		//	src_mat.at<float>(1) = srcTri[i].y;
-		//	src_mat.at<float>(2) = 1.0f;
-		//	cv::Mat dst_mat(2, 1, CV_32FC1);
-		//	dst_mat.at<float>(0) = dstTri[i].x;
-		//	dst_mat.at<float>(1) = dstTri[i].y;
-		//	double residual = cv::norm(affine_model*src_mat - dst_mat, NORM_L2);
-
-		//	if (residual > max_residual)
-		//	{
-		//		max_residual = residual;
-		//		max_pos = i;
-		//	}
-		//}
-
-		if (max_residual > residual_threshold)
+		if (max_residual > affine_residual_threshold)
 		{
 			inliers.erase(inliers.begin() + max_pos);
 		}
@@ -3423,16 +2922,51 @@ int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::M
 		}
 	}
 
+	matched_counts[count_pos++] = (int)inliers.size();
 	if (inliers.size() < 4)
 	{
 		return match_state::match_failed;
 	}
+
+	// check the elimilated matches
+	inliers.clear();
+	// eliminating repeated points
+	removeRepeated(skeypoints, mkeypoints, good_matches0, pos_threshold);
+	for (size_t i = 0; i < good_matches0.size(); i++)
+	{
+		Eigen::VectorXd b(2);
+		Eigen::MatrixXd A(2, 6);
+		A(0, 0) = 1.0;
+		A(0, 1) = skeypoints[good_matches0[i].queryIdx].pt.x;
+		A(0, 2) = skeypoints[good_matches0[i].queryIdx].pt.y;
+		A(0, 3) = 0.0;
+		A(0, 4) = 0.0;
+		A(0, 5) = 0.0;
+		b(0) = mkeypoints[good_matches0[i].trainIdx].pt.x;
+
+		A(1, 0) = 0.0;
+		A(1, 1) = 0.0;
+		A(1, 2) = 0.0;
+		A(1, 3) = 1.0;
+		A(1, 4) = skeypoints[good_matches0[i].queryIdx].pt.x;
+		A(1, 5) = skeypoints[good_matches0[i].queryIdx].pt.y;
+		b(1) = mkeypoints[good_matches0[i].trainIdx].pt.y;
+
+		Eigen::VectorXd resMat = A*affine_model - b;
+		double residual = sqrt(resMat[0] * resMat[0] + resMat[1] * resMat[1]);
+		if (residual <= affine_residual_threshold)
+		{
+			inliers.push_back(i);
+		}
+	}
+	good_matches = good_matches0;
+	matched_counts[count_pos++] = (int)inliers.size();
 	
 	// maybe a lot of correspondences are found, but we need only one correspondence for a tile
 	// whose contrast is the largest?
 	int slaveTemplateSize = 11;	// should be odd
 	int semiTemplateSize = slaveTemplateSize / 2; // masterTemplateSize is odd
-	int searchSize = 15;	// should be odd
+	int searchSize = 13;	// should be odd
 	int semisearchSize = searchSize / 2; // masterTemplateSize is odd
 	float maxId = inliers[0];
 	float maxContrast = mkeypoints[good_matches[inliers[0]].trainIdx].response + skeypoints[good_matches[inliers[0]].queryIdx].response;
@@ -3466,10 +3000,19 @@ int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::M
 	if (bLSM)
 	{
 
-		int imx = (int)(mkeypoints[good_matches[maxId].trainIdx].pt.x + 0.5);
-		int imy = (int)(mkeypoints[good_matches[maxId].trainIdx].pt.y + 0.5);
-		int isx = (int)(skeypoints[good_matches[maxId].queryIdx].pt.x + 0.5);
-		int isy = (int)(skeypoints[good_matches[maxId].queryIdx].pt.y + 0.5);
+		//int imx = (int)(mkeypoints[good_matches[maxId].trainIdx].pt.x + 0.5);
+		//int imy = (int)(mkeypoints[good_matches[maxId].trainIdx].pt.y + 0.5);
+		//int isx = (int)(skeypoints[good_matches[maxId].queryIdx].pt.x + 0.5);
+		//int isy = (int)(skeypoints[good_matches[maxId].queryIdx].pt.y + 0.5);
+
+		int imx = (int)(mkeypoints[good_matches[maxId].trainIdx].pt.x);
+		int imy = (int)(mkeypoints[good_matches[maxId].trainIdx].pt.y);
+		int isx = (int)(skeypoints[good_matches[maxId].queryIdx].pt.x);
+		int isy = (int)(skeypoints[good_matches[maxId].queryIdx].pt.y);
+		double delta_mx = mkeypoints[good_matches[maxId].trainIdx].pt.x - imx;
+		double delta_my = mkeypoints[good_matches[maxId].trainIdx].pt.y - imy;
+		double delta_sx = skeypoints[good_matches[maxId].queryIdx].pt.x - isx;
+		double delta_sy = skeypoints[good_matches[maxId].queryIdx].pt.y - isy;
 
 		if (imx < semisearchSize || imy < semisearchSize || imx >= masterMat.cols - semisearchSize || imy >= masterMat.rows - semisearchSize)
 		{
@@ -3488,49 +3031,289 @@ int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::M
 		cv::Mat mSearchMat = masterMat(cv::Rect(imx - semisearchSize, imy - semisearchSize, searchSize, searchSize));
 		cv::Mat sTemplateMat = slaveMat(cv::Rect(isx - semiTemplateSize, isy - semiTemplateSize, slaveTemplateSize, slaveTemplateSize));
 		double lsm_model[8];
-		// a1 a2 a3 b1 b2 b3 k1 k2
-		// x' = a1*x + a2*y + a3
-		// y' = b1*x + b2*y + b3
-		// f(x,y) = k1*g(x',y') + k2
-		//lsm_model[0] = 1.0;
-		//lsm_model[1] = 0.0;
-		//lsm_model[2] = 0.0 - semiTemplateSize + semisearchSize;
-		//lsm_model[3] = 0.0;
-		//lsm_model[4] = 1.0;
-		//lsm_model[5] = 0.0 - semiTemplateSize + semisearchSize;
-		//lsm_model[6] = 1.0;
-		//lsm_model[7] = 0.0;
-		lsm_model[0] = rigid_model[0];
-		lsm_model[1] = rigid_model[1];
-		lsm_model[2] = rigid_model[2];
-		lsm_model[3] = -rigid_model[1];
-		lsm_model[4] = rigid_model[0];
-		lsm_model[5] = rigid_model[3];
+		//// a1 a2 a3 b1 b2 b3 k1 k2
+		//// x' = a1*x + a2*y + a3
+		//// y' = b1*x + b2*y + b3
+		//// f(x,y) = k1*g(x',y') + k2
+		////lsm_model[0] = 1.0;
+		////lsm_model[1] = 0.0;
+		////lsm_model[2] = 0.0 - semiTemplateSize + semisearchSize;
+		////lsm_model[3] = 0.0;
+		////lsm_model[4] = 1.0;
+		////lsm_model[5] = 0.0 - semiTemplateSize + semisearchSize;
+		////lsm_model[6] = 1.0;
+		////lsm_model[7] = 0.0;
+		//lsm_model[0] = rigid_model[0];
+		//lsm_model[1] = rigid_model[1];
+		//lsm_model[2] = rigid_model[2];
+		//lsm_model[3] = -rigid_model[1];
+		//lsm_model[4] = rigid_model[0];
+		//lsm_model[5] = rigid_model[3];
+		lsm_model[0] = affine_model[1];
+		lsm_model[1] = affine_model[2];
+		lsm_model[2] = affine_model[0];
+		lsm_model[3] = affine_model[4];
+		lsm_model[4] = affine_model[5];
+		lsm_model[5] = affine_model[3];
 		lsm_model[6] = 1.0;
 		lsm_model[7] = 0.0;
-		lsm_model[2] += lsm_model[0] * (isx - semiTemplateSize) + lsm_model[1] * (isy - semiTemplateSize) - (imx - semisearchSize);
-		lsm_model[5] += lsm_model[3] * (isx - semiTemplateSize) + lsm_model[4] * (isy - semiTemplateSize) - (imy - semisearchSize);
+		lsm_model[2] += lsm_model[0] * (isx + delta_sx - semiTemplateSize) + lsm_model[1] * (isy + delta_sy - semiTemplateSize) - (imx + delta_mx - semisearchSize);
+		lsm_model[5] += lsm_model[3] * (isx + delta_sx - semiTemplateSize) + lsm_model[4] * (isy + delta_sy - semiTemplateSize) - (imy + delta_my - semisearchSize);
 
-		if (bDebug)
-		{
-			cv::Mat img_outImage;
-			drawTogether(sTemplateMat, mSearchMat, img_outImage);
-			cv::imwrite("lsm0.png", img_outImage);
-		}
-		leastSquareMatching(sTemplateMat, mSearchMat, lsm_model);
-		if (bDebug)
-		{
-			cv::Mat img_outImage;
-			drawTogether(sTemplateMat, mSearchMat, img_outImage);
-			cv::imwrite("lsm1.png", img_outImage);
-		}
+
+		//double lsm_model[14];
+		//lsm_model[0] = rigid_model[2];
+		//lsm_model[1] = rigid_model[0];
+		//lsm_model[2] = rigid_model[1];
+		//lsm_model[3] = 0.0;
+		//lsm_model[4] = 0.0;
+		//lsm_model[5] = 0.0;
+		//lsm_model[6] = rigid_model[3];
+		//lsm_model[7] = -rigid_model[1];
+		//lsm_model[8] = rigid_model[0];
+		//lsm_model[9] = 0.0;
+		//lsm_model[10] = 0.0;
+		//lsm_model[11] = 0.0;
+
+		//lsm_model[12] = 1.0;
+		//lsm_model[13] = 0.0;
+		//lsm_model[0] += lsm_model[1] * (isx - semiTemplateSize) + lsm_model[2] * (isy - semiTemplateSize) - (imx - semisearchSize);
+		//lsm_model[6] += lsm_model[7] * (isx - semiTemplateSize) + lsm_model[8] * (isy - semiTemplateSize) - (imy - semisearchSize);
+
+		//if (bDebug)
+		//{
+		//	cv::Mat img_outImage;
+		//	drawTogether(sTemplateMat, mSearchMat, img_outImage);
+		//	cv::imwrite("lsm0.png", img_outImage);
+		//}
+
 		int ix = semiTemplateSize;
 		int iy = semiTemplateSize;
-		double mx = lsm_model[0] * ix + lsm_model[1] * iy + lsm_model[2];
-		double my = lsm_model[3] * ix + lsm_model[4] * iy + lsm_model[5];
-		//cout << mx << ", " << my << endl;
-		mc = ossimDpt(imx - semisearchSize + mx, imy - semisearchSize + my);
-		sc = ossimDpt(isx, isy);
+		double mx;
+		double my;
+		mc = ossimDpt(mkeypoints[good_matches[maxId].trainIdx].pt.x, mkeypoints[good_matches[maxId].trainIdx].pt.y);
+		sc = ossimDpt(skeypoints[good_matches[maxId].queryIdx].pt.x, skeypoints[good_matches[maxId].queryIdx].pt.y);
+		if (leastSquareMatching(sTemplateMat, mSearchMat, lsm_model))
+		{
+			// lsm failed
+			mx = lsm_model[0] * (ix + delta_sx) + lsm_model[1] * (iy + delta_sy) + lsm_model[2];
+			my = lsm_model[3] * (ix + delta_sx) + lsm_model[4] * (iy + delta_sy) + lsm_model[5];
+			//double mx = lsm_model[0] + lsm_model[1] * ix + lsm_model[2] * iy + lsm_model[3] * ix*iy + lsm_model[4] * ix*ix + lsm_model[5] * iy*iy;
+			//double my = lsm_model[6] + lsm_model[7] * ix + lsm_model[8] * iy + lsm_model[9] * ix*iy + lsm_model[10] * ix*ix + lsm_model[11] * iy*iy;
+			//cout << mx << ", " << my << endl;
+			//mc = ossimDpt(imx - semisearchSize + mx, imy - semisearchSize + my);
+			//sc = ossimDpt(isx + delta_sx, isy + delta_sy);
+			//sc = ossimDpt(isx, isy);
+			ossimDpt mc_lsm = ossimDpt(imx - semisearchSize + mx, imy - semisearchSize + my);
+			double lsm_threshold = 2.0;	// if the position changes a lot after lsm, then it is not reliable
+			if ((mc - mc_lsm).length() < lsm_threshold)
+			{
+				mc = mc_lsm;
+			}
+		}
+		if (bDebug)
+		{
+			// ul
+			double ul_x = lsm_model[0] * (0) + lsm_model[1] * (0) + lsm_model[2];
+			double ul_y = lsm_model[3] * (0) + lsm_model[4] * (0) + lsm_model[5];
+			// ur
+			double ur_x = lsm_model[0] * (slaveTemplateSize - 1) + lsm_model[1] * (0) + lsm_model[2];
+			double ur_y = lsm_model[3] * (slaveTemplateSize - 1) + lsm_model[4] * (0) + lsm_model[5];
+			// lr
+			double lr_x = lsm_model[0] * (slaveTemplateSize - 1) + lsm_model[1] * (slaveTemplateSize - 1) + lsm_model[2];
+			double lr_y = lsm_model[3] * (slaveTemplateSize - 1) + lsm_model[4] * (slaveTemplateSize - 1) + lsm_model[5];
+			// ll
+			double ll_x = lsm_model[0] * 0 + lsm_model[1] * (slaveTemplateSize - 1) + lsm_model[2];
+			double llr_y = lsm_model[3] * 0 + lsm_model[4] * (slaveTemplateSize - 1) + lsm_model[5];
+			double max_x = max(max(ul_x, ur_x), max(lr_x, llr_y));
+			double max_y = max(max(ul_y, ur_y), max(lr_y, llr_y));
+			//cv::Mat lsmTemplateMat(int(max_x + 0.5), int(max_y + 0.5), CV_8UC1, cv::Scalar(0));
+
+			////for (int ii = 0; ii < slaveTemplateSize; ii++) //h
+			////{
+			////	for (int jj = 0; jj < slaveTemplateSize; ++jj) //w
+			////	{
+			////		int ixx = (lsm_model[0] * ii + lsm_model[1] * jj + lsm_model[2]+0.5);
+			////		int iyy = (lsm_model[3] * ii + lsm_model[4] * jj + lsm_model[5]+0.5);
+			////		if (ixx >= 0 && ixx < lsmTemplateMat.cols
+			////			&& iyy >= 0 && iyy < lsmTemplateMat.rows)
+			////		{
+			////			uchar v0 = sTemplateMat.at<uchar>(ii, jj);
+			////			double v1 = lsm_model[6] * v0 + lsm_model[7];
+			////			lsmTemplateMat.at<uchar>(ixx, iyy) = uchar(v1);
+			////		}
+			////	}
+			////}
+			//for (int ii = 0; ii < lsmTemplateMat.cols; ii++) //h
+			//{
+			//	for (int jj = 0; jj < lsmTemplateMat.rows; ++jj) //w
+			//	{
+			//		int ixx = int((lsm_model[4] * ii - lsm_model[1] * jj - lsm_model[2] * lsm_model[4] + lsm_model[1] * lsm_model[5]) 
+			//			/ (lsm_model[0] * lsm_model[4] - lsm_model[1] * lsm_model[3]) + 0.5);
+			//		int iyy = int((-lsm_model[3] * ii + lsm_model[0] * jj - lsm_model[0] * lsm_model[5] + lsm_model[2] * lsm_model[3])
+			//			/ (lsm_model[0] * lsm_model[4] - lsm_model[1] * lsm_model[3]) + 0.5);
+			//		if (ixx >= 0 && ixx < sTemplateMat.cols
+			//			&& iyy >= 0 && iyy < sTemplateMat.rows)
+			//		{
+			//			uchar v0 = sTemplateMat.at<uchar>(ixx, iyy);
+			//			double v1 = lsm_model[6] * v0 + lsm_model[7];
+			//			//lsmTemplateMat.at<uchar>(ii, jj) = v0;
+			//			if (v1 > 255.0)
+			//			{
+			//				lsmTemplateMat.at<uchar>(ii, jj) = 255;
+			//				if (255 == v0)
+			//				{
+			//					// let me see
+			//					int aaaa = char(v1);
+			//				}
+			//			}
+			//			else if (v1 < 0.0)
+			//			{
+			//				lsmTemplateMat.at<uchar>(ii, jj) = 0;
+			//				if (255 == v0)
+			//				{
+			//					// let me see
+			//					int aaaa = char(v1);
+			//				}
+			//			}
+			//			else
+			//			{
+			//				lsmTemplateMat.at<uchar>(ii, jj) = static_cast<uchar>(v1);
+			//				if (255 == v0)
+			//				{
+			//					// let me see
+			//					int aaaa = char(v1);
+			//				}
+			//			}
+			//		}
+			//	}
+			//}
+
+			cv::Mat lsmTemplateMat;
+			cv::Mat affineMat(2, 3, CV_32F);
+			affineMat.at<float>(0, 0) = lsm_model[0];
+			affineMat.at<float>(0, 1) = lsm_model[1];
+			affineMat.at<float>(0, 2) = lsm_model[2];
+			affineMat.at<float>(1, 0) = lsm_model[3];
+			affineMat.at<float>(1, 1) = lsm_model[4];
+			affineMat.at<float>(1, 2) = lsm_model[5];
+			cv::warpAffine(sTemplateMat, lsmTemplateMat, affineMat, 
+				cv::Size(int(max_x + 0.5), int(max_y + 0.5)), INTER_CUBIC);
+			//cv::Mat lsmTemplateMat_float(lsmTemplateMat.size(), CV_32F, cv::Scalar(255));
+
+			for (int ii = 0; ii < lsmTemplateMat.rows; ii++) //h
+			{
+				for (int jj = 0; jj < lsmTemplateMat.cols; ++jj) //w
+				{
+					uchar v0 = lsmTemplateMat.at<uchar>(ii, jj);
+					if (0 != v0)
+					{
+						uchar v0_ = mSearchMat.at<uchar>(ii, jj);
+						double v1 = lsm_model[6] * v0_ + lsm_model[7];
+						//double v1 = lsm_model[6] * v0 + lsm_model[7];
+						////double v1 = (v0 - lsm_model[7]) / lsm_model[6];
+						//lsmTemplateMat_float.at<float>(ii, jj) = v1;
+						//lsmTemplateMat.at<uchar>(ii, jj) = uchar(v1_);
+						//lsmTemplateMat.at<uchar>(ii, jj) = uchar(v1);
+						////lsmTemplateMat.at<uchar>(ii, jj) = uchar(v1);
+						if (v1 > 255.0)
+						{
+							lsmTemplateMat.at<uchar>(ii, jj) = 255;
+						}
+						else if (v1 < 0.0)
+						{
+							lsmTemplateMat.at<uchar>(ii, jj) = 0;
+						}
+						else
+						{
+							lsmTemplateMat.at<uchar>(ii, jj) = uchar(v1);
+						}
+
+					}
+				}
+			}
+			//cv::normalize(lsmTemplateMat_float, lsmTemplateMat, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+
+			//for (int ii = 0; ii < slaveTemplateSize; ii++) //h
+			//{
+			//	for (int jj = 0; jj < slaveTemplateSize; ++jj) //w
+			//	{
+			//		int ixx = (lsm_model[0] * ii + lsm_model[1] * jj + lsm_model[2]+0.5);
+			//		int iyy = (lsm_model[3] * ii + lsm_model[4] * jj + lsm_model[5]+0.5);
+			//		if (ixx >= 0 && ixx < lsmTemplateMat.cols
+			//			&& iyy >= 0 && iyy < lsmTemplateMat.rows)
+			//		{
+			//			uchar v0 = sTemplateMat.at<uchar>(ii, jj);
+			//			double v1 = lsm_model[6] * v0 + lsm_model[7];
+			//			lsmTemplateMat.at<uchar>(ixx, iyy) = uchar(v1);
+			//		}
+			//	}
+			//}
+
+			int interplate_type = INTER_CUBIC;
+			interplate_type = INTER_NEAREST;
+			int factor = 1;
+			if (sTemplateMat.type() == CV_8U)
+				cvtColor(sTemplateMat, sTemplateMat, CV_GRAY2RGB);
+			else
+				sTemplateMat.copyTo(sTemplateMat);
+			cv::resize(sTemplateMat, sTemplateMat, cv::Size(sTemplateMat.cols*factor, sTemplateMat.rows*factor), 0.0, 0.0, interplate_type);
+
+			if (mSearchMat.type() == CV_8U)
+				cvtColor(mSearchMat, mSearchMat, CV_GRAY2RGB);
+			else
+				mSearchMat.copyTo(mSearchMat);
+			cv::resize(mSearchMat, mSearchMat, cv::Size(mSearchMat.cols*factor, mSearchMat.rows*factor), 0.0, 0.0, interplate_type);
+
+			if (lsmTemplateMat.type() == CV_8U)
+				cvtColor(lsmTemplateMat, lsmTemplateMat, CV_GRAY2RGB);
+			else
+				lsmTemplateMat.copyTo(lsmTemplateMat);
+			cv::resize(lsmTemplateMat, lsmTemplateMat, cv::Size(lsmTemplateMat.cols*factor, lsmTemplateMat.rows*factor), 0.0, 0.0, interplate_type);
+
+			cv::Mat mSearchMatOrigin;
+			mSearchMat.copyTo(mSearchMatOrigin);
+
+
+			int semiCrossWidth = 2;
+			cv::Scalar singlePointColor(0, 0, 255);
+			cv::line(sTemplateMat, cv::Point((semiTemplateSize + delta_sx)*factor - semiCrossWidth, (semiTemplateSize + delta_sy)*factor),
+				cv::Point((semiTemplateSize + delta_sx)*factor + semiCrossWidth, (semiTemplateSize + delta_sy)*factor),
+				singlePointColor, 1);
+			cv::line(sTemplateMat, cv::Point((semiTemplateSize + delta_sx)*factor, (semiTemplateSize + delta_sy)*factor - semiCrossWidth),
+				cv::Point((semiTemplateSize + delta_sx)*factor, (semiTemplateSize + delta_sy)*factor + semiCrossWidth),
+				singlePointColor, 1);
+			cv::imwrite("lsm_template.png", sTemplateMat);
+
+			cv::line(mSearchMat, cv::Point((mx)*factor - semiCrossWidth, (my)*factor),
+				cv::Point((mx)*factor + semiCrossWidth, (my)*factor),
+				singlePointColor, 1);
+			cv::line(mSearchMat, cv::Point((mx)*factor, (my)*factor - semiCrossWidth),
+				cv::Point((mx)*factor, (my)*factor + semiCrossWidth),
+				singlePointColor, 1);
+			cv::imwrite("lsm_search.png", mSearchMat);
+
+			cv::line(lsmTemplateMat, cv::Point((mx)*factor - semiCrossWidth, (my)*factor),
+				cv::Point((mx)*factor + semiCrossWidth, (my)*factor),
+				singlePointColor, 1);
+			cv::line(lsmTemplateMat, cv::Point((mx)*factor, (my)*factor - semiCrossWidth),
+				cv::Point((mx)*factor, (my)*factor + semiCrossWidth),
+				singlePointColor, 1);			
+			cv::imwrite("lsm_warp.png", lsmTemplateMat);
+
+			
+			cv::line(mSearchMatOrigin, cv::Point((semisearchSize + delta_mx)*factor - semiCrossWidth, (semisearchSize + delta_my)*factor),
+				cv::Point((semisearchSize + delta_mx)*factor + semiCrossWidth, (semisearchSize + delta_my)*factor),
+				singlePointColor, 1);
+			cv::line(mSearchMatOrigin, cv::Point((semisearchSize + delta_mx)*factor, (semisearchSize + delta_my)*factor - semiCrossWidth),
+				cv::Point((semisearchSize + delta_mx)*factor, (semisearchSize + delta_my)*factor + semiCrossWidth),
+				singlePointColor, 1);
+			cv::imwrite("lsm_search_origin.png", mSearchMatOrigin);
+
+			cv::Mat img_outImage;
+			drawTogether(sTemplateMat, mSearchMatOrigin, mSearchMat, lsmTemplateMat, img_outImage);
+			cv::imwrite("lsm.png", img_outImage);
+		}
 	}
 	else
 	{
@@ -3589,6 +3372,80 @@ int radiImageRegistration::runMatchParallel(const cv::Mat& slaveMat, const cv::M
 		cv::imwrite(buf, outMat);
 		sprintf_s(buf, "%s\\result%04d_%d.png\0", matchedFolder.c_str(), matched_counter, (int)inliers.size());
 		cv::imwrite(buf, imgMatch);
+
+		
+		int matched_counts2[10];
+		int count_pos2 = 0;
+		vector< DMatch > good_matches2;
+
+		findGoogdMatches(matches, matches_inverse, good_matches2, nndrRatio, false);
+		//findGoodMatches(matches, good_matches2, 0.80f);
+		matched_counts2[count_pos2++] = (int)good_matches2.size();
+
+		// eliminating repeated points
+		removeRepeated(skeypoints, mkeypoints, good_matches2, pos_threshold);
+
+		vector<int> inliers2;
+
+		if (good_matches2.size() < 4)
+		{
+			inliers2.clear();
+		}
+		else
+		{
+			vector<double> affine_model2 = mylib::affineRansac(skeypoints, mkeypoints, good_matches2, inliers2, 0.98);
+		}
+		matched_counts2[count_pos2++] = (int)inliers2.size();
+
+		// check the matches
+		int correct_count = 0;
+		for (size_t i = 0; i < inliers2.size(); i++)
+		{
+			Eigen::VectorXd b(2);
+			Eigen::MatrixXd A(2, 6);
+			A(0, 0) = 1.0;
+			A(0, 1) = skeypoints[good_matches2[inliers2[i]].queryIdx].pt.x;
+			A(0, 2) = skeypoints[good_matches2[inliers2[i]].queryIdx].pt.y;
+			A(0, 3) = 0.0;
+			A(0, 4) = 0.0;
+			A(0, 5) = 0.0;
+			b(0) = mkeypoints[good_matches2[inliers2[i]].trainIdx].pt.x;
+
+			A(1, 0) = 0.0;
+			A(1, 1) = 0.0;
+			A(1, 2) = 0.0;
+			A(1, 3) = 1.0;
+			A(1, 4) = skeypoints[good_matches2[inliers2[i]].queryIdx].pt.x;
+			A(1, 5) = skeypoints[good_matches2[inliers2[i]].queryIdx].pt.y;
+			b(1) = mkeypoints[good_matches2[inliers2[i]].trainIdx].pt.y;
+
+			Eigen::VectorXd resMat = A*affine_model - b;
+			double residual = sqrt(resMat[0] * resMat[0] + resMat[1] * resMat[1]);
+			//if (residual <= 2.0)
+			if (residual <= affine_residual_threshold)
+			{
+				correct_count++;
+			}
+		}
+		matched_counts2[count_pos2++] = correct_count;
+
+		char buf1[1024];
+		sprintf(buf1, "1:");
+		for (size_t i = 0; i < count_pos; i++)
+		{
+			sprintf(buf1, "%s\t%d", buf1, matched_counts[i]);
+		}
+		sprintf(buf1, "%s\0", buf1);
+		cerr << buf1 << endl;
+
+		char buf2[1024];
+		sprintf(buf2, "2:");
+		for (size_t i = 0; i < count_pos2; i++)
+		{
+			sprintf(buf2, "%s\t%d", buf2, matched_counts2[i]);
+		}
+		sprintf(buf2, "%s\0", buf2);
+		cerr << buf2 << endl;
 	}
 
 	//handlerM->close();
@@ -3706,7 +3563,7 @@ ossimIrect radiImageRegistration::getMasterRect(ossimProjection* sProjection, os
 	return ossimIrect(mul.x, mul.y, mlr.x, mlr.y);
 }
 
-bool radiImageRegistration::getGridFeaturesParallel(const ossimIrect& rect, radiBlockTieGptSet& tSet)
+bool radiImageRegistration::getGridFeaturesParallel(const image_block& block, radiBlockTieGptSet& tSet)
 {
 	bool bStretch = true;
 	//bStretch = false;
@@ -3721,12 +3578,12 @@ bool radiImageRegistration::getGridFeaturesParallel(const ossimIrect& rect, radi
 		return false;
 	}
 
-	const ossim_int32 TILE_HEIGHT	= min(theTileSize, rect.height());
-	const ossim_int32 TILE_WIDTH	= min(theTileSize, rect.width());
-	const ossim_int32 START_LINE = rect.ul().y;
-	const ossim_int32 STOP_LINE  = rect.lr().y;
-	const ossim_int32 START_SAMP = rect.ul().x;
-	const ossim_int32 STOP_SAMP  = rect.lr().x;
+	const ossim_int32 TILE_HEIGHT = min(theTileSize, block.rect.height());
+	const ossim_int32 TILE_WIDTH = min(theTileSize, block.rect.width());
+	const ossim_int32 START_LINE = block.rect.ul().y;
+	const ossim_int32 STOP_LINE = block.rect.lr().y;
+	const ossim_int32 START_SAMP = block.rect.ul().x;
+	const ossim_int32 STOP_SAMP = block.rect.lr().x;
 	int nWidth = STOP_SAMP-START_SAMP;
 	int nHeight = STOP_LINE-START_LINE;
 
@@ -3743,17 +3600,20 @@ bool radiImageRegistration::getGridFeaturesParallel(const ossimIrect& rect, radi
 	ossim_int32 line=START_LINE;
 	ossim_int32 i,j;
 
-	vector<row_col> row_col_List;
-	double center_row = tilerows * 0.5;
-	double center_col = tilecols * 0.5;
-	for (i=0;(i<tilerows);++i)
-	{
-		for (j=0;(j<tilecols);++j )
-		{
-			//row_col_List.push_back(row_col((center_row - i - 1), (center_col - j - 1)));
-			row_col_List.push_back(row_col(i, j));
-		}
-	}
+	vector<row_col> row_col_List = assign_row_col_list(tilerows, tilecols, block.position);
+	//vector<row_col> row_col_List;
+	//double center_row = tilerows * 0.5;
+	//double center_col = tilecols * 0.5;
+	//for (i=0;(i<tilerows);++i)
+	//{
+	//	for (j=0;(j<tilecols);++j )
+	//	{
+	//		//row_col_List.push_back(row_col((center_row - i - 1), (center_col - j - 1)));
+	//		row_col_List.push_back(row_col(i, j));
+	//	}
+	//}
+	//row_col_step = 5;
+	//std::sort(row_col_List.begin(), row_col_List.end(), RowColCompare);
 
 	GdalRasterApp slaveApp;
 	if (!slaveApp.open(getSlave().c_str()))
@@ -3771,9 +3631,7 @@ bool radiImageRegistration::getGridFeaturesParallel(const ossimIrect& rect, radi
 	//	sb=0;
 	//}
 
-	//int ncore = omp_get_num_procs();//获取执行核的总数；  目前机器CPU的数量
-	row_col_step = 5;
-	std::sort(row_col_List.begin(), row_col_List.end(), RowColCompare);	
+	//int ncore = omp_get_num_procs();//获取执行核的总数；  目前机器CPU的数量	
 
 	bool found = false;
 	int search_size = (int)row_col_List.size();
@@ -3825,6 +3683,7 @@ bool radiImageRegistration::getGridFeaturesParallel(const ossimIrect& rect, radi
 
 		ossimIpt search_radius((ossim_int32)(ceil(theSlaveAccuracy)), (ossim_int32)(ceil(theSlaveAccuracy)));
 		ossimIrect srect(ossimIpt(samp, line) - search_radius, ossimIpt(samp + BufWidth - 1, line + BufHeight - 1) + search_radius);
+		srect = srect.clipToRect(slaveApp.getBoundary());
 		ossimIrect srect0(ossimIpt(samp, line), ossimIpt(samp + BufWidth - 1, line + BufHeight - 1));
 		//cout<<srect.ul()<<"\t"<<srect.lr()<<endl;
 		//cout<<BufWidth<<"\t"<<BufHeight<<endl;
@@ -3943,7 +3802,7 @@ bool radiImageRegistration::getGridFeaturesParallel(const ossimIrect& rect, radi
 			//cv::equalizeHist(slaveMat, slaveMat);
 			//cv::equalizeHist(masterMat, masterMat);
 
-			if (match_state::success == runMatchParallel(slaveMat, masterMat, tp[0], this, theDebug))
+			if (match_state::success == runMatch(slaveMat, masterMat, tp[0], this, theDebug))
 			{
 				if(NULL == mHandler->getImageGeometry().get()
 					|| NULL == (mProjection = mHandler->getImageGeometry()->getProjection()).get()
@@ -4024,275 +3883,291 @@ bool radiImageRegistration::getGridFeaturesParallel(const ossimIrect& rect, radi
 }
 
 
-//bool radiImageRegistration::getGridFeaturesParallel0(const ossimIrect& rect, radiBlockTieGptSet& tSet)
-//{
-//
-//	//cout<<rect.ul()<<"\t"<<rect.lr()<<endl;
-//	if (!theSlaveBandSelector)
-//	{
-//		ossimNotify(ossimNotifyLevel_WARN)
-//			<< "WARN ossimTieGenerator::scanForEdges():"
-//			<< "\nInput source is not a ossimImageChip.  Returning..." << std::endl;
-//		return false;
-//	}
-//
-//	const ossim_int32 TILE_HEIGHT = min(theTileSize, rect.height());
-//	const ossim_int32 TILE_WIDTH = min(theTileSize, rect.width());
-//	const ossim_int32 START_LINE = rect.ul().y;
-//	const ossim_int32 STOP_LINE = rect.lr().y;
-//	const ossim_int32 START_SAMP = rect.ul().x;
-//	const ossim_int32 STOP_SAMP = rect.lr().x;
-//	int nWidth = STOP_SAMP - START_SAMP;
-//	int nHeight = STOP_LINE - START_LINE;
-//
-//	//// For percent complete status.
-//	//ossim_int32 tilerows = ossim_int32((STOP_LINE-START_LINE+TILE_HEIGHT) / TILE_HEIGHT + 0.5); //ceil : (stop-start+1+size-1)/size
-//	//ossim_int32 tilecols = ossim_int32((STOP_SAMP-START_SAMP+TILE_WIDTH) / TILE_WIDTH + 0.5);
-//	ossim_int32 tilerows = ossim_int32((STOP_LINE - START_LINE + 1) / (double)TILE_HEIGHT + 0.5); //ceil : (stop-start+1+size-1)/size
-//	ossim_int32 tilecols = ossim_int32((STOP_SAMP - START_SAMP + 1) / (double)TILE_WIDTH + 0.5);
-//	//double total_tiles = ((double)tilerows)*tilecols;
-//	//double tiles_processed = 0.0;
-//
-//	// loop through all tiles
-//	// need to use a sequencer for parallelism in the future TBD
-//	ossim_int32 line = START_LINE;
-//	ossim_int32 i, j;
-//
-//	vector<row_col> row_col_List;
-//	double center_row = tilerows * 0.5;
-//	double center_col = tilecols * 0.5;
-//	for (i = 0; (i<tilerows); ++i)
-//	{
-//		for (j = 0; (j<tilecols); ++j)
-//		{
-//			//row_col_List.push_back(row_col((center_row - i - 1), (center_col - j - 1)));
-//			row_col_List.push_back(row_col(i, j));
-//		}
-//	}
-//
-//	GdalRasterApp slaveApp;
-//	if (!slaveApp.open(getSlave().c_str()))
-//	{
-//		cerr << "radiImageRegistration" << "::execute can't open slave image  " << getSlave().c_str() << endl;
-//		return false;
-//	}
-//	// select only one band (if multiple)
-//	ossim_uint32 sbc = slaveApp.nBand();
-//	//add a band selector
-//	ossim_uint32 sb = theSlaveBand;
-//	if (sb >= sbc)
-//	{
-//		cerr << "radiImageRegistration" << "::execute Warning not enough bands in slave, only " << sbc << endl;
-//		sb = 0;
-//	}
-//
-//	double sGSD = 1.0;// = min(theSlaveProjection->getMetersPerPixel().x, theSlaveProjection->getMetersPerPixel().y);
-//	if (NULL != theSlaveProjection)
-//	{
-//		sGSD = min(theSlaveProjection->getMetersPerPixel().x, theSlaveProjection->getMetersPerPixel().y);
-//	}
-//	//int ncore = omp_get_num_procs();//获取执行核的总数；  目前机器CPU的数量
-//	row_col_step = 5;
-//	std::sort(row_col_List.begin(), row_col_List.end(), RowColCompare);
-//
-//	bool found = false;
-//	int search_size = (int)row_col_List.size();
-//	//search_size = min(search_size, 1);
-//	for (int i = 0; i < search_size && !found; ++i)
-//	{
-//		//int icol = int(row_col_List[i+j].col_idx+center_col);
-//		//int irow = int(row_col_List[i + j].row_idx + center_row);
-//		int icol = int(row_col_List[i].col_idx);
-//		int irow = int(row_col_List[i].row_idx);
-//		ossim_int32 samp = START_SAMP + icol*TILE_WIDTH;
-//		ossim_int32 line = START_LINE + irow*TILE_HEIGHT;
-//
-//		ossim_int32 BufHeight = min(TILE_HEIGHT, nHeight);
-//		ossim_int32 BufWidth = min(TILE_WIDTH, nWidth);
-//		//行末尾小块处理
-//		if (irow == tilerows - 1)
-//		{
-//			BufHeight = nHeight - (tilerows - 1) * TILE_HEIGHT;
-//			BufHeight = min(BufHeight, TILE_HEIGHT);
-//		}
-//		//列末尾小块处理
-//		if (icol == tilecols - 1)
-//		{
-//			BufWidth = nWidth - (tilecols - 1) * TILE_WIDTH;
-//			BufWidth = min(BufWidth, TILE_WIDTH);
-//		}
-//
-//		// slave
-//		cv::Mat slaveMat;
-//		ossimIrect srect(ossimIpt(samp, line), ossimIpt(samp + BufWidth - 1, line + BufHeight - 1));
-//		//cout<<srect.ul()<<"\t"<<srect.lr()<<endl;
-//		//cout<<BufWidth<<"\t"<<BufHeight<<endl;
-//		if (!slaveApp.getRect2CvMatByte(srect, slaveMat, theSlaveBand, 1.0, 0.001))
-//		{
-//			continue;
-//		}
-//		if (countNonZero(slaveMat) < 1)
-//		{
-//			continue;
-//		}
-//
-//		ossimIpt sul = srect.ul();
-//		ossimIpt slr = srect.lr();
-//		ossimIpt delta_lr((ossim_int32)(ceil(theSlaveAccuracy)), (ossim_int32)(ceil(theSlaveAccuracy)));
-//
-//		vector<ossimTDpt> tp(1);
-//		// search in the reference library
-//		vector<ossimFilename> masterFileList;
-//		if (theMaster.ext().upcase() == "SHP")
-//		{
-//			ossimGpt ul_latlon, lr_latlon;
-//			theSlaveProjection->lineSampleToWorld(sul - delta_lr, ul_latlon);
-//			theSlaveProjection->lineSampleToWorld(slr + delta_lr, lr_latlon);
-//			getMasterList(theMaster, masterFileList, ul_latlon, lr_latlon);
-//		}
-//		else{
-//			masterFileList.clear();
-//			masterFileList.push_back(theMaster);
-//		}
-//
-//		cv::Mat masterMat;
-//		found = false;
-//		for (int iFile = 0; iFile < (int)masterFileList.size(); ++iFile)
-//		{
-//			ossimFilename lastMaster = masterFileList[iFile];
-//			theLastMaster = lastMaster;
-//			GdalRasterApp masterApp;
-//			ossimRefPtr<ossimImageHandler> mHandler = ossimImageHandlerRegistry::instance()->open(lastMaster);
-//			if (!masterApp.open(lastMaster.c_str()) || NULL == mHandler.get())
-//			{
-//				cerr << "radiImageRegistration" << "::execute can't open master image  " << lastMaster << endl;
-//				continue;
-//			}
-//			ossimRefPtr<ossimProjection> mProjection;
-//			// select only one band (if multiple)
-//			ossim_uint32 mbc = masterApp.nBand();
-//			//add a band selector
-//			ossim_uint32 mb = theMasterBand;
-//			if (mb >= mbc)
-//			{
-//				//cerr<<"radiImageRegistration"<<"::execute Warning not enough bands in master, only "<< mbc <<endl;
-//				mb = 0;
-//			}
-//
-//			double gsd_scale;
-//			// master
-//			ossimIrect mrect;
-//			//if (0 == strcmp(masterApp.getGetProjectionRef(), ""))
-//			if (NULL == mHandler->getImageGeometry().get() || NULL == (mProjection = mHandler->getImageGeometry()->getProjection()).get())
-//			{
-//				// 无投影
-//				mrect = ossimIrect(sul - delta_lr, slr + delta_lr);
-//				gsd_scale = 1.0;
-//			}
-//			else
-//			{
-//				double mGSD = mProjection->getMetersPerPixel().x;
-//				//double mGSD = masterApp.getGeoTransform()[1];
-//				gsd_scale = mGSD / sGSD;
-//				//gsd_scale = 1.0;
-//				// master
-//				mrect = getMasterRect(theSlaveProjection, mProjection.get(),
-//					srect, theSlaveAccuracy);
-//			}
-//			mrect = mrect.clipToRect(masterApp.getBoundary());
-//			if (!masterApp.getRect2CvMatByte(mrect, masterMat, mb, gsd_scale, 0.001))
-//			{
-//				//cerr<<"radiImageRegistration"<<"::execute master tile is not valid.  "<<endl;
-//				masterApp.close();
-//				continue;
-//			}
-//			if (countNonZero(masterMat) < 1)
-//			{
-//				continue;
-//			}
-//
-//			cv::Mat temp;
-//			cv::GaussianBlur(slaveMat, temp, cv::Size(0, 0), 3);
-//			cv::addWeighted(slaveMat, 1.5, temp, -0.5, 0, slaveMat);
-//
-//			cv::GaussianBlur(masterMat, temp, cv::Size(0, 0), 3);
-//			cv::addWeighted(masterMat, 1.5, temp, -0.5, 0, masterMat);
-//
-//			if (match_state::success == runMatchParallel(slaveMat, masterMat, tp[0], this, theDebug))
-//			{
-//				if (NULL == mHandler->getImageGeometry().get()
-//					|| NULL == (mProjection = mHandler->getImageGeometry()->getProjection()).get()
-//					|| thePointType == point_type::tie)
-//					//if (0 == strcmp(masterApp.getGetProjectionRef(), "")
-//					//	|| thePointType == point_type::tie)
-//				{
-//					tp[0].setMasterPoint(tp[0].getMasterPoint() / gsd_scale + mrect.ul());
-//					tp[0].setSlavePoint(tp[0].getSlavePoint() + sul);
-//					// 无投影
-//					ossimRefPtr<radiBlockTieGpt> tgi(new radiBlockTieGpt);
-//					ossimDpt dpt = tp[0].getMasterPoint();
-//					tgi->setGroundPoint(ossimGpt(dpt.y, dpt.x, 0.0));
-//					//set slave image position
-//					tgi->refImagePoint() = tp[0].getSlavePoint();
-//					tgi->setSlaveId(theSlaveId);
-//					tgi->setMasterId(theMasterId);
-//					if (thePointType == point_type::tie)
-//					{
-//						tgi->m_DptList.push_back(pair<int, ossimDpt>(theSlaveId, tp[0].getSlavePoint()));
-//						tgi->m_DptList.push_back(pair<int, ossimDpt>(theMasterId, tp[0].getMasterPoint()));
-//						tgi->setPointType(radiBlockTieGpt::unknown_tie_image_points);
-//					}
-//					else
-//					{
-//						tgi->setPointType(radiBlockTieGpt::known_ground_control_points);
-//					}
-//					//set score
-//					tgi->setScore(tp[0].score);
-//					//add to list
-//					tSet.addTiePoint(tgi);
-//				}
-//				else
-//				{
-//					tp[0].setMasterPoint(tp[0].getMasterPoint() / gsd_scale + mrect.ul());
-//					tp[0].setSlavePoint(tp[0].getSlavePoint() + sul);
-//					// convert "Image to Image" to "Ground to Image" tie points    //TBC : use more generic tie points
-//					ossimRefPtr<radiBlockTieGpt> tgi(new radiBlockTieGpt);
-//					ossimGpt ll;
-//					mProjection->lineSampleToWorld(tp[0].getMasterPoint(), ll);
-//					ll.hgt = ossimElevManager::instance()->getHeightAboveEllipsoid(ll);
-//					tgi->setGroundPoint(ll);
-//					//set slave image position
-//					tgi->refImagePoint() = tp[0].getSlavePoint();
-//					tgi->setSlaveId(theSlaveId);
-//					tgi->setMasterId(theMasterId);
-//					//if (thePointType == point_type::tie)
-//					//{
-//					//	tgi->setPointType(radiBlockTieGpt::unknown_tie_image_points);
-//					//}
-//					//else
-//					//{
-//					tgi->setPointType(radiBlockTieGpt::known_ground_control_points);
-//					//}
-//					//set score
-//					tgi->setScore(tp[0].score);
-//					//add to list
-//					tSet.addTiePoint(tgi);
-//				}
-//				masterApp.close();
-//				found = true;
-//				break;
-//			}
-//			else
-//			{
-//				//cerr<<"this tile does not matched."<<endl;
-//				masterApp.close();
-//				continue;
-//			}
-//		}
-//	}
-//	slaveApp.close();
-//	return found;
-//}
+
+
+bool radiImageRegistration::getGridFeaturesOnline(const image_block& block, radiBlockTieGptSet& tSet,
+	const char* strRefSource)
+{
+	bool bStretch = true;
+
+	//cout<<rect.ul()<<"\t"<<rect.lr()<<endl;
+	if (!theSlaveBandSelector)
+	{
+		ossimNotify(ossimNotifyLevel_WARN)
+			<< "WARN ossimTieGenerator::scanForEdges():"
+			<< "\nInput source is not a ossimImageChip.  Returning..." << std::endl;
+		return false;
+	}
+
+	const ossim_int32 TILE_HEIGHT = min((unsigned int)theTileSize, block.rect.height());
+	const ossim_int32 TILE_WIDTH = min((unsigned int)theTileSize, block.rect.width());
+	const ossim_int32 START_LINE = block.rect.ul().y;
+	const ossim_int32 STOP_LINE = block.rect.lr().y;
+	const ossim_int32 START_SAMP = block.rect.ul().x;
+	const ossim_int32 STOP_SAMP = block.rect.lr().x;
+	int nWidth = STOP_SAMP - START_SAMP;
+	int nHeight = STOP_LINE - START_LINE;
+
+	//// For percent complete status.
+	//ossim_int32 tilerows = ossim_int32((STOP_LINE-START_LINE+TILE_HEIGHT) / TILE_HEIGHT + 0.5); //ceil : (stop-start+1+size-1)/size
+	//ossim_int32 tilecols = ossim_int32((STOP_SAMP-START_SAMP+TILE_WIDTH) / TILE_WIDTH + 0.5);
+	ossim_int32 tilerows = ossim_int32((STOP_LINE - START_LINE + 1) / (double)TILE_HEIGHT + 0.5); //ceil : (stop-start+1+size-1)/size
+	ossim_int32 tilecols = ossim_int32((STOP_SAMP - START_SAMP + 1) / (double)TILE_WIDTH + 0.5);
+	//double total_tiles = ((double)tilerows)*tilecols;
+	//double tiles_processed = 0.0;
+
+	// loop through all tiles
+	// need to use a sequencer for parallelism in the future TBD
+	ossim_int32 line = START_LINE;
+	ossim_int32 i, j;
+
+	vector<row_col> row_col_List;
+	double center_row = tilerows * 0.5;
+	double center_col = tilecols * 0.5;
+	for (i = 0; (i<tilerows); ++i)
+	{
+		for (j = 0; (j<tilecols); ++j)
+		{
+			//row_col_List.push_back(row_col((center_row - i - 1), (center_col - j - 1)));
+			row_col_List.push_back(row_col(i, j));
+		}
+	}
+
+	GdalRasterApp slaveApp;
+	if (!slaveApp.open(getSlave().c_str()))
+	{
+		cerr << "radiImageRegistration" << "::execute can't open slave image  " << getSlave().c_str() << endl;
+		return false;
+	}
+	// select only one band (if multiple)
+	ossim_uint32 sbc = slaveApp.nBand();
+
+	double sGSD = 1.0;// = min(theSlaveProjection->getMetersPerPixel().x, theSlaveProjection->getMetersPerPixel().y);
+	if (NULL != theSlaveProjection)
+	{
+		sGSD = min(theSlaveProjection->getMetersPerPixel().x, theSlaveProjection->getMetersPerPixel().y);
+	}
+	//int ncore = omp_get_num_procs();//获取执行核的总数；  目前机器CPU的数量
+	row_col_step = 5;
+	std::sort(row_col_List.begin(), row_col_List.end(), RowColCompare);
+
+	bool found = false;
+	int search_size = (int)row_col_List.size();
+	//search_size = min(search_size, 1);
+	for (int i = 0; i < search_size && !found; ++i)
+	{
+		//int icol = int(row_col_List[i+j].col_idx+center_col);
+		//int irow = int(row_col_List[i + j].row_idx + center_row);
+		int icol = int(row_col_List[i].col_idx);
+		int irow = int(row_col_List[i].row_idx);
+		ossim_int32 samp = START_SAMP + icol*TILE_WIDTH;
+		ossim_int32 line = START_LINE + irow*TILE_HEIGHT;
+
+		ossim_int32 BufHeight = min(TILE_HEIGHT, nHeight);
+		ossim_int32 BufWidth = min(TILE_WIDTH, nWidth);
+		//行末尾小块处理
+		if (irow == tilerows - 1)
+		{
+			BufHeight = nHeight - (tilerows - 1) * TILE_HEIGHT;
+			BufHeight = min(BufHeight, TILE_HEIGHT);
+		}
+		//列末尾小块处理
+		if (icol == tilecols - 1)
+		{
+			BufWidth = nWidth - (tilecols - 1) * TILE_WIDTH;
+			BufWidth = min(BufWidth, TILE_WIDTH);
+		}
+
+		// slave
+		cv::Mat slaveMat;
+		ossimDpt scenter((samp + samp + BufWidth - 1)*0.5, (line + line + BufHeight - 1)*0.5);
+
+
+		// get slave rect
+		ossimGpt ll_center;
+		theSlaveProjection->lineSampleToWorld(scenter, ll_center);
+		int nearestZoomLevel = getZoomLevel(sGSD, ll_center.lat);
+
+		vector<ossimTDpt> tp(1);
+		ossimDpt res = gsd_meter(ll_center.lat, nearestZoomLevel);
+		double mGSD = res.x;
+		double scale = mGSD / sGSD;
+		nWidth = TILE_WIDTH / scale;
+		nHeight = TILE_HEIGHT / scale;
+		nWidth = min(nWidth, 600);
+		nHeight = min(nHeight, 600);
+
+		ossimDpt mimage_center = ossimDpt(nWidth*0.5, nHeight*0.5);
+		ossimGpt mul_ll = masterLineSample2World(ossimDpt(0.0, 0.0),
+			ll_center, mimage_center, nearestZoomLevel, 1.0);
+		ossimGpt mlr_ll = masterLineSample2World(ossimDpt(nWidth, nHeight),
+			ll_center, mimage_center, nearestZoomLevel, 1.0);
+		ossimGpt mur_ll = masterLineSample2World(ossimDpt(nWidth, 0.0),
+			ll_center, mimage_center, nearestZoomLevel, 1.0);
+		ossimGpt mll_ll = masterLineSample2World(ossimDpt(0.0, nHeight),
+			ll_center, mimage_center, nearestZoomLevel, 1.0);
+		ossimGrect mllRect(mul_ll, mlr_ll);
+		//double ulLon = mul_ll.lon;
+		//double ulLat = mul_ll.lat;
+		//double lrLon = mlr_ll.lon;
+		//double lrLat = mlr_ll.lat;
+		//ossimGrect mllRect(ossimGpt(ulLat, ulLon), ossimGpt(lrLat, lrLon));
+
+		// get slave rect
+		ossimDpt p[4];
+		//theSlaveProjection->worldToLineSample(mllRect.ul(), p[0]);
+		//theSlaveProjection->worldToLineSample(mllRect.ur(), p[1]);
+		//theSlaveProjection->worldToLineSample(mllRect.lr(), p[2]);
+		//theSlaveProjection->worldToLineSample(mllRect.ll(), p[3]);
+		theSlaveProjection->worldToLineSample(mul_ll, p[0]);
+		theSlaveProjection->worldToLineSample(mur_ll, p[1]);
+		theSlaveProjection->worldToLineSample(mlr_ll, p[2]);
+		theSlaveProjection->worldToLineSample(mll_ll, p[3]);
+
+		double xmin = p[0].x;
+		double xmax = p[0].x;
+		double ymin = p[0].y;
+		double ymax = p[0].y;
+
+		for (int i = 1; i<4; ++i)
+		{
+			if (xmin > p[i].x)
+			{
+				xmin = p[i].x;
+			}
+			if (xmax < p[i].x)
+			{
+				xmax = p[i].x;
+			}
+			if (ymin > p[i].y)
+			{
+				ymin = p[i].y;
+			}
+			if (ymax < p[i].y)
+			{
+				ymax = p[i].y;
+			}
+		}
+		ossimIpt delta_lr((ossim_int32)(ceil(theSlaveAccuracy)), (ossim_int32)(ceil(theSlaveAccuracy)));
+		ossimDrect srect(ossimDpt(xmin, ymin) - delta_lr, ossimDpt(xmax, ymax) + delta_lr);
+
+		//srect = srect.clipToRect(handlerS->getBoundingRect(0));
+		srect = worldRectIntersection(srect, handlerS->getBoundingRect(0));
+
+		ossimDpt sul = srect.ul();
+		ossimDpt slr = srect.lr();
+
+		//if (srect.hasNans() || !slaveApp.getCombinedRect2CvMatByte(srect, slaveMat, { 2, 3, 1 }, { .2126, .7152, .0722 }, ossimDpt(1.0, 1.0), 0.015))
+		if (srect.hasNans() || !slaveApp.getRect2CvMatByte(srect, slaveMat, theSlaveBands, ossimDpt(1.0, 1.0), 0.015, bStretch))
+		//if (srect.hasNans() || !slaveApp.getRect2CvMatByte(srect, slaveMat, theSlaveBand, 1.0, 0.015))
+		{
+			continue;
+		}
+		if (countNonZero(slaveMat) < 1)
+		{
+			continue;
+		}
+
+		int logoHeight = 25;
+
+		char url_buf[2048];
+		//string type = "Google";
+		//string type = "Bing";
+		struct MemoryStruct chunk;
+		if (0 == stricmp(strRefSource, strGoogle))
+		{
+			sprintf_s(url_buf, "https://maps.googleapis.com/maps/api/staticmap?center=%lf,%lf&zoom=%d&size=%dx%d&maptype=satellite",
+				ll_center.lat, ll_center.lon, nearestZoomLevel, nWidth, nHeight + logoHeight * 2);
+			chunk = getDataFromUrl(url_buf, "http://127.0.0.1:8087");
+		}
+		else if (0 == stricmp(strRefSource, strBing))
+		{
+			sprintf_s(url_buf, "http://dev.virtualearth.net/REST/v1/Imagery/Map/Aerial/%lf,%lf/%d?mapSize=%d,%d&key=AopmRHqd_NETfVAUdDQL9KTpveOTs5zX8T2nVS23AOVjbLnYRCoCZLb14jEhWbgj",
+				ll_center.lat, ll_center.lon, nearestZoomLevel, nWidth, nHeight + logoHeight * 2);
+			chunk = getDataFromUrl(url_buf);
+		}
+		else if (0 == stricmp(strRefSource, strMapquest))
+		{
+			sprintf_s(url_buf, "http://www.mapquestapi.com/staticmap/v4/getmap?type=sat&center=%lf,%lf&zoom=%d&size=%d,%d&scalebar=false&key=pk.eyJ1IjoibG9vbmdmZWUiLCJhIjoiMXlmVE9CQSJ9.op9z2_EqoaEo8qMBo9i1xQ",
+				ll_center.lon, ll_center.lat, nearestZoomLevel, nWidth, nHeight + logoHeight * 2);
+			chunk = getDataFromUrl(url_buf);
+		}
+		else if (0 == stricmp(strRefSource, strMapbox))
+		{
+			sprintf_s(url_buf, "http://api.tiles.mapbox.com/v4/mapbox.satellite/%lf,%lf,%d/%dx%d.png?access_token=pk.eyJ1IjoibG9vbmdmZWUiLCJhIjoiMXlmVE9CQSJ9.op9z2_EqoaEo8qMBo9i1xQ",
+				ll_center.lon, ll_center.lat, nearestZoomLevel, nWidth, nHeight + logoHeight * 2);
+			chunk = getDataFromUrl(url_buf);
+		}
+
+		cv::Mat imgbuf = cv::Mat(nHeight + logoHeight * 2, nWidth, CV_8UC3, chunk.memory);
+		//masterMat = cv::imdecode(imgbuf, CV_LOAD_IMAGE_COLOR);
+
+		cv::Mat masterMat;
+		found = false;
+		masterMat = cv::imdecode(imgbuf, CV_LOAD_IMAGE_GRAYSCALE);
+
+		if (logoHeight > 0)
+		{
+			// trim logo
+			masterMat = masterMat(cv::Rect(0, logoHeight, nWidth, nHeight));
+		}
+		if (countNonZero(masterMat) < 1)
+		{
+			continue;
+		}
+
+		double nNewWidth = masterMat.cols * scale;
+		double nNewHeight = masterMat.rows * scale;
+
+		cv::resize(masterMat, masterMat, cv::Size(nNewWidth, nNewHeight));//resize image
+
+		slaveApp.stretchRect2Byte<GByte>(nNewWidth, nNewHeight, masterMat.data, masterMat.data, 0.015);
+
+		if (chunk.memory)
+			free(chunk.memory);
+
+
+		//cv::Mat temp;
+		//cv::GaussianBlur(slaveMat, temp, cv::Size(0, 0), 3);
+		//cv::addWeighted(slaveMat, 1.5, temp, -0.5, 0, slaveMat);
+
+		//cv::GaussianBlur(masterMat, temp, cv::Size(0, 0), 3);
+		//cv::addWeighted(masterMat, 1.5, temp, -0.5, 0, masterMat);
+
+		//masterMat = cv::imread(buf, 0);
+		double cx = nNewWidth * 0.5;
+		double cy = nNewHeight * 0.5;
+		if (match_state::success == runMatch(slaveMat, masterMat, tp[0], this, theDebug))
+		{
+			ossimDpt ctileXy = LonLat2TileXy(ll_center, nearestZoomLevel);
+			ossimDpt tileXy = ctileXy + (tp[0].getMasterPoint() - ossimDpt(cx, cy)) / scale;
+			ossimGpt ll = TileXy2LonLat(tileXy.x, tileXy.y, nearestZoomLevel);
+			//double mLon = ll_center.lon + (tp[0].getMasterPoint().x - cx) * res_deg.x;
+			//double mLat = ll_center.lat + (tp[0].getMasterPoint().y - cy) * res_deg.y;
+			//ossimGpt ll(mLat, mLon);
+
+			tp[0].setSlavePoint(tp[0].getSlavePoint() + sul);
+			// convert "Image to Image" to "Ground to Image" tie points    //TBC : use more generic tie points
+			ossimRefPtr<radiBlockTieGpt> tgi(new radiBlockTieGpt);
+			ll.hgt = ossimElevManager::instance()->getHeightAboveEllipsoid(ll);
+			tgi->setGroundPoint(ll);
+			//set slave image position
+			tgi->refImagePoint() = tp[0].getSlavePoint();
+			tgi->setSlaveId(theSlaveId);
+			tgi->setMasterId(theMasterId);
+			tgi->setPointType(radiBlockTieGpt::known_ground_control_points);
+			//set score
+			tgi->setScore(tp[0].score);
+			//add to list
+			tSet.addTiePoint(tgi);
+
+			found = true;
+			break;
+		}
+	}
+	slaveApp.close();
+	return found;
+}
 
 //bool radiImageRegistration::getGridFeaturesParallel(const ossimIrect& rect, radiBlockTieGpt& tSet)
 //{
@@ -5093,8 +4968,12 @@ bool radiImageRegistration::getAllFeatures()
 	// For percent complete status.
 	ossim_int32 tilerows = ceil(sqrt(nPointRequired * nHeight / (double)nWidth ));
 	ossim_int32 tilecols = ceil(sqrt(nPointRequired * nWidth / (double)nHeight ));
-	const ossim_int32 TILE_HEIGHT = int((nHeight - theTileSize*2) / (tilerows - 1));
-	const ossim_int32 TILE_WIDTH = int((nWidth - theTileSize*2) / (tilecols - 1));
+	//const ossim_int32 TILE_HEIGHT = int((nHeight - theTileSize*2) / (tilerows - 1));
+	//const ossim_int32 TILE_WIDTH = int((nWidth - theTileSize * 2) / (tilecols - 1));
+	//const ossim_int32 TILE_HEIGHT = int((nHeight - 500) / (tilerows - 1));
+	//const ossim_int32 TILE_WIDTH = int((nWidth - 500) / (tilecols - 1));
+	const ossim_int32 TILE_HEIGHT = int((nHeight) / (tilerows-0.7));
+	const ossim_int32 TILE_WIDTH = int((nWidth) / (tilecols - 0.7));
 	//const ossim_int32 TILE_HEIGHT = ceil(nHeight / (double)tilerows - 0.5);
 	//const ossim_int32 TILE_WIDTH = ceil(nWidth / (double)tilecols - 0.5);
 	double total_tiles = ((double)tilerows)*tilecols;
@@ -5281,7 +5160,7 @@ bool radiImageRegistration::getAllFeatures()
 			num++;
 		}
 		threads[i] = new radiMatchRectThread(this);
-		vector<ossimIrect> rectList;
+		vector<image_block> blockList;
 		for (size_t j = 0; j < num; j++)
 		{
 			int irow = (int)row_col_List[iTile].row_idx;
@@ -5308,11 +5187,72 @@ bool radiImageRegistration::getAllFeatures()
 				BufWidth = nWidth - (tilecols - 1) * TILE_WIDTH;
 				BufWidth = min(BufWidth, TILE_WIDTH);
 			}
-			rectList.push_back(ossimIrect(ossimIpt(samp, line), ossimIpt(samp + BufWidth - 1, line + BufHeight - 1)));
+			image_block block;
+			block.rect = ossimIrect(ossimIpt(samp, line), ossimIpt(samp + BufWidth - 1, line + BufHeight - 1));
+			if (0 == icol)
+			{
+				// left
+				if (0 == irow)
+				{
+					// top
+					block.position = block_position::left_top;
+				}
+				else if (irow == tilerows - 1)
+				{
+					// bottom
+					block.position = block_position::left_bottom;
+				}
+				else
+				{
+					// center
+					block.position = block_position::left;
+				}
+			}
+			else if (icol == tilecols - 1)
+			{
+				// right
+				if (0 == irow)
+				{
+					// top
+					block.position = block_position::right_top;
+				}
+				else if (irow == tilerows - 1)
+				{
+					// bottom
+					block.position = block_position::right_bottom;
+				}
+				else
+				{
+					// center
+					block.position = block_position::right;
+				}
+
+			}
+			else
+			{
+				// center
+				if (0 == irow)
+				{
+					// top
+					block.position = block_position::top;
+				}
+				else if (irow == tilerows - 1)
+				{
+					// bottom
+					block.position = block_position::bottom;
+				}
+				else
+				{
+					// center
+					block.position = block_position::center;
+				}
+			}
+			blockList.push_back(block);
 			iTile++;
 		}
+		threads[i]->m_RefSource = theMaster.c_str();
 		threads[i]->m_totalBlocks = numForTask;
-		threads[i]->setRect(rectList);
+		threads[i]->setBlocks(blockList);
 		threads[i]->start();
 
 		//for (int j = i + startNum; j < numForTask; j += theThreadNum1)

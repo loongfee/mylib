@@ -34,6 +34,7 @@
 #include "mpi.h"
 #pragma comment(lib, "msmpi.lib")
 #pragma comment(lib, "levmar.lib")
+#pragma comment(lib, "libcurl.lib")
 
 using namespace mylib;
 
@@ -574,9 +575,10 @@ int main( int argc, char** argv )
 		//pszReferenceFile = "D:\\workspace\\Landsat\\feature_test\\LS5_TM_20080625_000000_000000_145033_GEOTIFF_L4\\L5-TM-145-033-20080625-L4.TIF";
 		//pszGcpFile = "D:\\workspace\\Landsat\\feature_test\\200.txt";
 
-		//pszSourceFile = "E:\\HJ1\\HJ-L2\\HJ\\2010.tif";
-		////pszReferenceFile = "D:\\workspace\\fuhai\\FCGC600205282\\IMG_PHR1A_P_001\\rect.tif";
-		//pszReferenceFile = "E:\\HJ1\\HJ-L2\\TM\\2010.tif";
+		pszSourceFile = "E:\\HJ1\\HJ-L2\\HJ\\2010.tif";
+		pszReferenceFile = "E:\\HJ1\\HJ-L2\\TM\\2010.tif";
+		//pszReferenceFile = "G:\\testdata\\china\\china2005-20141115.tif";
+		pszGcpFile = "E:\\HJ1\\HJ-L2\\HJ\\auto.txt";
 
 		//pszSourceFile = "D:\\workspace\\HJ\\西北\\HJ1B-CCD1-38-68-20100831-L20000384864-3.TIF";
 		////pszSourceFile = "D:\\workspace\\HJ\\西北\\b3.TIF";
@@ -591,12 +593,7 @@ int main( int argc, char** argv )
 		//pszSourceFile = "E:\\HJ1\\Scene08\\IMAGE.TIF";
 		//pszReferenceFile = "G:\\testdata\\china\\china2005-20141115.tif";
 		//pszGcpFile = "E:\\HJ1\\Scene08\\auto.txt";
-
-		//pszSourceFile = "D:\\workspace\\LD2010003816\\header.dat";
-		////pszReferenceFile = "D:\\workspace\\LD2010003816\\TM_123036.TIF";
-		//pszReferenceFile = "G:\\testdata\\china\\china2005-20141115.tif";
-		//pszGcpFile = "D:\\workspace\\LD2010003816\\auto.txt";
-
+		
 		//pszSourceFile = "D:\\workspace\\LD2010003816\\header.dat";
 		//pszReferenceFile = "D:\\workspace\\LD2010003816\\TM_123036.TIF";
 		////pszReferenceFile = "G:\\testdata\\china\\china2005-20141115.tif";
@@ -611,9 +608,63 @@ int main( int argc, char** argv )
 		////pszReferenceFile = "G:\\testdata\\china\\china2005-20141115.tif";
 		//pszGcpFile = "D:\\workspace\\PALSAR\\0000005501_001001_ALOS2024040390-141102\\auto.txt";
 
-		pszSourceFile = "D:\\workspace\\Spot5\\tianjin\\282270-20040518-2.5\\scene01\\imagery.tif";
-		pszReferenceFile = "D:\\workspace\\Spot5\\tianjin\\282270_20040518.tif";
-		pszGcpFile = "D:\\workspace\\Spot5\\tianjin\\gcp_auto.txt";
+		//pszSourceFile = "D:\\workspace\\Spot5\\tianjin\\282270-20040518-2.5\\scene01\\imagery.tif";
+		//pszReferenceFile = "D:\\workspace\\Spot5\\tianjin\\282270_20040518.tif";
+		//pszGcpFile = "D:\\workspace\\Spot5\\tianjin\\gcp_auto.txt";
+
+		//pszSourceFile = "D:\\workspace\\GF-qinghai\\data\\GF1_PMS1_E99.5_N36.4_20140405_L1A0000197018-MSS1.tiff";
+		////pszReferenceFile = "D:\\workspace\\GF-qinghai\\data\\pan.TIF";
+		//pszReferenceFile = "D:\\workspace\\GF-qinghai\\data\\GF1_PMS1_E99.5_N36.4_20140405_L1A0000197018-PAN1.tiff";
+		//pszGcpFile = "D:\\workspace\\GF-qinghai\\data\\auto.txt";
+
+		//pszSourceFile = "D:\\workspace\\WV01\\K2_MSC_110526013121_25751_10031299\\MSC_110526013121_25751_10031299PN12_1R.tif";
+		//pszReferenceFile = "D:\\workspace\\WV01\\53553869020_01-beijing\\053553869020_01\\053553869020_01_P001_PAN\\orth_13AUG03025915-P2AS-053553869020_01_P001.tif";
+		//pszGcpFile = "D:\\workspace\\WV01\\K2_MSC_110526013121_25751_10031299\\auto.txt";
+
+
+		//pszSourceFile = "E:\\HJ1\\Scene08\\IMAGE.TIF";
+		//pszReferenceFile = "Bing";
+		//pszGcpFile = "E:\\HJ1\\Scene08\\auto_online.txt";
+
+		//pszSourceFile = "D:\\workspace\\LD2010003816\\header.dat";
+		//pszReferenceFile = "Bing";
+		//pszGcpFile = "D:\\workspace\\LD2010003816\\auto_online.txt";
+
+		//pszSourceFile = "D:\\workspace\\GF\\GF1_WFV3_E75.9_N42.2_20140831_L1A0000322879\\GF1_WFV3_E75.9_N42.2_20140831_L1A0000322879\\GF1_WFV3_E75.9_N42.2_20140831_L1A0000322879.tiff";
+		//pszReferenceFile = "Google";
+		//pszReferenceFile = "Mapbox";
+		//pszGcpFile = "D:\\workspace\\GF\\GF1_WFV3_E75.9_N42.2_20140831_L1A0000322879\\auto_online.txt";
+
+		pszSourceFile = "D:\\workspace\\GF\\test\\GF1_PMS2_E116.8_N40.5_20130501_L1A0000119982-MSS2.tiff";
+		pszReferenceFile = "Google";
+		//pszReferenceFile = "Mapbox";
+		pszReferenceFile = "Bing";
+		pszGcpFile = "D:\\workspace\\GF\\test\\auto_online.txt";
+
+		//pszSourceFile = "G:\\testdata\\klq\\GF1_PMS2_E108.2_N33.8_20141005_L1A0000505585\\GF1_PMS2_E108.2_N33.8_20141005_L1A0000505585-MSS2.tiff";
+		////pszReferenceFile = "D:\\workspace\\GF-qinghai\\data\\pan.TIF";
+		//pszReferenceFile = "D:\\workspace\\klq\\mosaic2.tif";
+		//pszGcpFile = "G:\\testdata\\klq\\GF1_PMS2_E108.2_N33.8_20141005_L1A0000505585\\auto.txt";
+
+		//pszSourceFile = "G:\\testdata\\klq\\ZY3_MUX_E107.4_N33.5_20140819_L1A0002931946\\ZY3_MUX_E107.4_N33.5_20140819_L1A0002931946.tiff";
+		////pszReferenceFile = "D:\\workspace\\GF-qinghai\\data\\pan.TIF";
+		//pszReferenceFile = "D:\\workspace\\klq\\mosaic1.tif";
+		//pszGcpFile = "G:\\testdata\\klq\\ZY3_MUX_E107.4_N33.5_20140819_L1A0002931946\\auto.txt";
+
+		pszSourceFile = "G:\\testdata\\klq\\ZY3_MUX_E108.6_N33.9_20140903_L1A0002932280\\ZY3_MUX_E108.6_N33.9_20140903_L1A0002932280.tiff";
+		//pszReferenceFile = "D:\\workspace\\GF-qinghai\\data\\pan.TIF";
+		pszReferenceFile = "D:\\workspace\\klq\\mosaic2.tif";
+		pszGcpFile = "G:\\testdata\\klq\\ZY3_MUX_E108.6_N33.9_20140903_L1A0002932280\\auto.txt";
+
+		pszSourceFile = "D:\\workspace\\IKONOS\\po_10655_pan_0000000\\po_10655_pan_0000000.tif";
+		pszReferenceFile = "Bing";
+		//pszReferenceFile = "Google";
+		pszGcpFile = "D:\\workspace\\IKONOS\\po_10655_pan_0000000\\auto_online.txt";
+
+		pszSourceFile = "D:\\workspace\\IKONOS\\StereoMP_1m_BW_8bit\\po_97258_pan_0000000.tif";
+		pszReferenceFile = "D:\\workspace\\IKONOS\\StereoMP_1m_BW_8bit\\po_97258_pan_0010000_orth.tif";
+		//pszReferenceFile = "Google";
+		pszGcpFile = "D:\\workspace\\IKONOS\\StereoMP_1m_BW_8bit\\auto.txt";
 
 		pointType = radiImageRegistration::point_type::control;
 		//pointType = radiImageRegistration::point_type::tie;
@@ -630,12 +681,18 @@ int main( int argc, char** argv )
 		//mBandList = { 0, 1, 2};
 		sBandList = { 3 };
 		mBandList = { 1 };
+		//sBandList = { 0 };
+		//mBandList = { 2 };
+		sBandList = { 1 };
+		mBandList = { 0 };
 		sBandList = { 0 };
 		mBandList = { 0 };
 		bGeographic = true;
 
+
 		//tileSize = 128;
-		////tileSize = 256;
+		tileSize = 256;
+		//tileSize = 200;
 		//nPoint = 100;
 		//aoi_x0 = 4500;
 		//aoi_y0 = 0;

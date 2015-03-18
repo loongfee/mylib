@@ -50,6 +50,7 @@
 
 #include <levmar.h>
 #include "mpi.h"
+#include "functions.h"
 using namespace mylib;
 //using namespace groupsac;
 using namespace std;
@@ -60,22 +61,44 @@ class ossimImageGeometry;
 class ossimMapProjection;
 class ossimListenerManager;
 
+static char* strGoogle = "Google";
+static char* strBing = "Bing";
+static char* strMapquest = "Mapquest";
+static char* strMapbox = "Mapbox";
 
-struct row_col{
-	double row_idx;
-	double col_idx;
-	row_col(double r, double c)
-	{
-		row_idx = r;
-		col_idx = c;
-	}
-};
+//struct row_col{
+//	double row_idx;
+//	double col_idx;
+//	row_col(double r, double c)
+//	{
+//		row_idx = r;
+//		col_idx = c;
+//	}
+//};
+//
+//enum block_position{
+//	left = 0,
+//	right,
+//	top,
+//	bottom,
+//	left_top,
+//	left_bottom,
+//	right_top,
+//	right_bottom,
+//	center,
+//};
+//
+//struct image_block
+//{
+//	ossimIrect rect;
+//	block_position position;
+//};
+
 
 #include <OpenThreads/Thread>
 #include <OpenThreads/Mutex>
 #include <OpenThreads/Barrier>
 #include "radiImageRegistration.h"
-#include "ThreadReporter.h"
 
 #ifdef _WIN32
 #include <process.h>
@@ -96,37 +119,194 @@ class radiImageRegistration;
 //	return (fabs(rc1.row_idx)+fabs(rc1.col_idx)) < (fabs(rc2.row_idx)+fabs(rc2.col_idx));
 //}
 
-static int row_col_step = 7;
-// multiple keywords
-static bool RowColCompare(row_col rc1, row_col rc2)
-{
-	return (fabs(rc1.row_idx)+fabs(rc1.col_idx)) < (fabs(rc2.row_idx)+fabs(rc2.col_idx));
-	//int fd1 = fabs(rc1.row_idx)+fabs(rc1.col_idx);
-	//int fd2 = fabs(rc2.row_idx)+fabs(rc2.col_idx);
-	//int d1 = (int)(fd1 + 0.5);
-	//int d2 = (int)(fd2 + 0.5);
-	//int m1 = d1%row_col_step;
-	//int m2 = d2 %row_col_step;
-	//if (m1 == m2)
-	//{
-	//	return fd1 < fd2;
-	//}
-	//return m1 < m2;
-}
-//bool RowColCompare(row_col rc1, row_col rc2)
+//static int row_col_step = 7;
+//// multiple keywords
+//static bool RowColCompare(row_col rc1, row_col rc2)
 //{
-//	//return (fabs(rc1.row_idx)+fabs(rc1.col_idx)) < (fabs(rc2.row_idx)+fabs(rc2.col_idx));
-//	int fd1 = fabs(rc1.row_idx)+fabs(rc1.col_idx);
-//	int fd2 = fabs(rc2.row_idx)+fabs(rc2.col_idx);
-//	int d1 = (int)(fd1 + 0.5);
-//	int d2 = (int)(fd2 + 0.5);
-//	int m1 = d1%row_col_step;
-//	int m2 = d2 %row_col_step;
-//	if (m1 == m2)
+//	return (fabs(rc1.row_idx)+fabs(rc1.col_idx)) < (fabs(rc2.row_idx)+fabs(rc2.col_idx));
+//	//int fd1 = fabs(rc1.row_idx)+fabs(rc1.col_idx);
+//	//int fd2 = fabs(rc2.row_idx)+fabs(rc2.col_idx);
+//	//int d1 = (int)(fd1 + 0.5);
+//	//int d2 = (int)(fd2 + 0.5);
+//	//int m1 = d1%row_col_step;
+//	//int m2 = d2 %row_col_step;
+//	//if (m1 == m2)
+//	//{
+//	//	return fd1 < fd2;
+//	//}
+//	//return m1 < m2;
+//}
+////bool RowColCompare(row_col rc1, row_col rc2)
+////{
+////	//return (fabs(rc1.row_idx)+fabs(rc1.col_idx)) < (fabs(rc2.row_idx)+fabs(rc2.col_idx));
+////	int fd1 = fabs(rc1.row_idx)+fabs(rc1.col_idx);
+////	int fd2 = fabs(rc2.row_idx)+fabs(rc2.col_idx);
+////	int d1 = (int)(fd1 + 0.5);
+////	int d2 = (int)(fd2 + 0.5);
+////	int m1 = d1%row_col_step;
+////	int m2 = d2 %row_col_step;
+////	if (m1 == m2)
+////	{
+////		return fd1 < fd2;
+////	}
+////	return m1 < m2;
+////}
+//static vector<row_col> assign_row_col_list(int tilerows, int tilecols, block_position position = block_position::center)
+//{
+//	vector<row_col> row_col_List;
+//	double center_row = (tilerows-1) * 0.5;
+//	double center_col = (tilecols-1) * 0.5;
+//	double start_row = center_row;
+//	double start_col = center_col;
+//
+//	//bool row_first = true;
+//
+//	//if (position == block_position::left
+//	//	|| position == block_position::left_bottom
+//	//	|| position == block_position::left_top)
+//	//{
+//	//	start_col = 0.0;
+//	//	if (position == block_position::left)
+//	//	{
+//	//		row_first = false;
+//	//	}
+//	//}
+//	//else if (position == block_position::right
+//	//	|| position == block_position::right_bottom
+//	//	|| position == block_position::right_top)
+//	//{
+//	//	start_col = tilecols;
+//	//	if (position == block_position::right)
+//	//	{
+//	//		row_first = false;
+//	//	}
+//	//}
+//	//else
+//	//{
+//	//	start_col = center_col;
+//	//}
+//
+//	//if (position == block_position::top
+//	//	|| position == block_position::left_top
+//	//	|| position == block_position::right_top)
+//	//{
+//	//	start_row = 0;
+//	//	if (position == block_position::top)
+//	//	{
+//	//		row_first = true;
+//	//	}
+//	//}
+//	//else if (position == block_position::bottom
+//	//	|| position == block_position::left_bottom
+//	//	|| position == block_position::right_bottom)
+//	//{
+//	//	start_row = tilerows;
+//	//	if (position == block_position::bottom)
+//	//	{
+//	//		row_first = true;
+//	//	}
+//	//}
+//	//else
+//	//{
+//	//	start_row = center_row;
+//	//}
+//
+//	if (position == block_position::left
+//		|| position == block_position::left_bottom
+//		|| position == block_position::left_top)
 //	{
-//		return fd1 < fd2;
+//		start_col = center_col;
+//		start_col = 0.0;
 //	}
-//	return m1 < m2;
+//	else if (position == block_position::right
+//		|| position == block_position::right_bottom
+//		|| position == block_position::right_top)
+//	{
+//		start_col = tilecols;
+//	}
+//	else
+//	{
+//		start_col = center_col;
+//		start_col = 0.0;
+//	}
+//
+//	if (position == block_position::top
+//		|| position == block_position::left_top
+//		|| position == block_position::right_top)
+//	{
+//		start_row = center_row;
+//		start_row = 0;
+//	}
+//	else if (position == block_position::bottom
+//		|| position == block_position::left_bottom
+//		|| position == block_position::right_bottom)
+//	{
+//		start_row = tilerows;
+//	}
+//	else
+//	{
+//		start_row = center_row;
+//		start_row = 0;
+//	}
+//
+//	//double weight = 2.0; 
+//	//if (row_first)
+//	//{
+//	//	weight = tilecols*0.5;
+//	//}
+//	//else
+//	//{
+//	//	weight = tilerows*0.5;
+//
+//	//}
+//	for (int i = 0; (i<tilerows); ++i)
+//	{
+//		for (int j = 0; (j<tilecols); ++j)
+//		{
+//			row_col_List.push_back(row_col(i - start_row, j - start_col));
+//			//if (row_first)
+//			//{
+//			//	row_col_List.push_back(row_col((i - start_row)*weight, j - start_col));
+//			//}
+//			//else
+//			//{
+//			//	row_col_List.push_back(row_col((i - start_row)*weight, (j - start_col)*weight));
+//
+//			//}
+//		}
+//	}
+//	std::sort(row_col_List.begin(), row_col_List.end(), RowColCompare);
+//	for (size_t i = 0; i < row_col_List.size(); i++)
+//	{
+//		//if (row_first)
+//		//{
+//		//	row_col_List[i].row_idx /= weight;
+//		//}
+//		//else
+//		//{
+//		//	row_col_List[i].col_idx /= weight;
+//		//}
+//		row_col_List[i].col_idx = int(row_col_List[i].col_idx + start_col);
+//		row_col_List[i].row_idx = int(row_col_List[i].row_idx + start_row);
+//		if (row_col_List[i].col_idx < 0)
+//		{
+//			row_col_List[i].col_idx = 0;
+//		}
+//		else if (row_col_List[i].col_idx >= tilecols)
+//		{
+//			row_col_List[i].col_idx = tilecols - 1;
+//		}
+//
+//		if (row_col_List[i].row_idx < 0)
+//		{
+//			row_col_List[i].row_idx = 0;
+//		}
+//		else if (row_col_List[i].row_idx >= tilerows)
+//		{
+//			row_col_List[i].row_idx = tilerows - 1;
+//		}
+//	}
+//	return row_col_List;
 //}
 
 class radiImageRegistration :
@@ -142,6 +322,7 @@ public:
 	   control = 0,
 	   tie,
    };
+
 
    enum match_state{
 	   success = 0,
@@ -240,6 +421,18 @@ public:
 	   }
    }
 
+   bool useOnline()
+   {
+	   if (0 == stricmp(theMaster.c_str(), strGoogle)
+		   || 0 == stricmp(theMaster.c_str(), strBing)
+		   || 0 == stricmp(theMaster.c_str(), strMapquest)
+		   || 0 == stricmp(theMaster.c_str(), strMapbox))
+	   {
+		   return true;
+	   }
+	   return false;
+   }
+
 protected:  
 	// loong
 	void writeTiePoints(const radiBlockTieGptSet& tp);
@@ -249,10 +442,11 @@ protected:
 	inline void setStoreFlag(bool sf) { theStoreFlag = sf; }
 	bool getAllFeatures();
 	bool getGridFeatures(const ossimIrect& rect);
-	int runMatch(const ossimIrect &srect, const ossimIrect &mrect, vector<ossimTDpt>& theTies, ossim_uint32 resLevel = 0);
+	//int runMatch(const ossimIrect &srect, const ossimIrect &mrect, vector<ossimTDpt>& theTies, ossim_uint32 resLevel = 0);
+	bool getGridFeaturesOnline(const image_block& block, radiBlockTieGptSet& tSet, const char* strRefSource);
 	bool getGridFeaturesParallel(const ossimIrect& rect, void *pData);
-	bool getGridFeaturesParallel(const ossimIrect& rect, radiBlockTieGptSet& tSet);
-	int runMatchParallel(const cv::Mat& slaveMat, const cv::Mat& masterMat, ossimTDpt& tDpt, void *pData, bool bDebug = false);
+	bool getGridFeaturesParallel(const image_block& rect, radiBlockTieGptSet& tSet);
+	int runMatch(const cv::Mat& slaveMat, const cv::Mat& masterMat, ossimTDpt& tDpt, void *pData, bool bDebug = false);
 	//int runMatchParallel1(const cv::Mat& slaveMat, const cv::Mat& masterMat, ossimTDpt& tDpt, void *pData, bool bDebug = false);
 	int runMatchParallelNcc(const cv::Mat& slaveMat, const cv::Mat& masterMat, ossimTDpt& tDpt, void *pData, bool bDebug = false);
 	bool createTileMat(const ossimRefPtr<ossimCastTileSourceFilter>& cast, const ossimIrect& rect, cv::Mat& outMat, ossim_uint32 resLevel = 0);
@@ -455,7 +649,7 @@ public:
 	radiMatchRectThread(radiImageRegistration *pRegistration)
 		: OpenThreads::Thread(),
 		m_pRegistration(pRegistration){};
-	void setRect(const vector<ossimIrect>& rectList){m_rectList = rectList;};
+	void setBlocks(const vector<image_block>& blockList){ m_blockList = blockList; };
 	virtual  ~radiMatchRectThread()
 	{
 		//m_pRegistration = NULL;
@@ -467,9 +661,19 @@ public:
 		MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 		MPI_Comm_size(MPI_COMM_WORLD, &nTasks);
 
-		for (int i = 0;i < (int)m_rectList.size();++i)
+		for (int i = 0; i < (int)m_blockList.size(); ++i)
 		{
-			m_pRegistration->getGridFeaturesParallel(m_rectList[i], m_theTset);
+			if (0 == stricmp(m_RefSource, strGoogle)
+				|| 0 == stricmp(m_RefSource, strBing)
+				|| 0 == stricmp(m_RefSource, strMapquest)
+				|| 0 == stricmp(m_RefSource, strMapbox))
+			{
+				m_pRegistration->getGridFeaturesOnline(m_blockList[i], m_theTset, m_RefSource);
+			}
+			else
+			{
+				m_pRegistration->getGridFeaturesParallel(m_blockList[i], m_theTset);
+			}
 			_quitmutex.lock();
 			finishedBlocks++;
 			//m_pRegistration->setPercentComplete((finishedBlocks)/(double)totalBlocks*100.0);
@@ -525,10 +729,11 @@ public:
 	};
 	radiBlockTieGptSet m_theTset;
 	int m_totalBlocks;
+	const char* m_RefSource;
 private:
-	bool getGridFeaturesParallel(const ossimIrect& rect);
+	bool getGridFeaturesParallel(const image_block& block);
 	radiImageRegistration *m_pRegistration;
-	vector<ossimIrect> m_rectList;
+	vector<image_block> m_blockList;
 	int *_dataPtr;
 	int _numElts;
 	volatile bool _quitflag;

@@ -34,20 +34,17 @@
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/features2d/features2d.hpp"
+#include "opencv2/xfeatures2d/nonfree.hpp"
 //#include "opencv2/legacy/legacy.hpp"
 //#include "opencv2/nonfree/nonfree.hpp"
 #include <algorithm>
-#include "RANSAC/ransac/ransac.h"
-#include "RANSAC/estimators/Solver.h"
-#include "RANSAC/estimators/affineSolver.h"
-#include "RANSAC/estimators/affineError.h"
-#include "RANSAC/estimators/rigidSolver.h"
-#include "RANSAC/estimators/rigidError.h"
 #include <GdalRasterApp.h>
-#include "mpi.h"
+
+#include <ez_ransac.h>
+
 #include <levmar.h>
+#include "mpi.h"
 using namespace mylib;
-using namespace groupsac;
 using namespace std;
 using namespace cv;
 using namespace ossimplugins;
