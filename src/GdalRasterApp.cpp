@@ -144,7 +144,7 @@ cv::Mat asRowMatrix(const vector<cv::Mat>& src, int rtype, double alpha = 1, dou
 	return data;
 }
 
-bool GdalRasterApp::getRect2CvMat(const ossimIrect &rect, cv::Mat& outMat, int band)
+bool GdalRasterApp::getRect2CvMat(const ossimIrect &rect, cv::Mat& outMat, int band)const
 {
 	if (!m_Boundary.pointWithin(rect.ul()) || !m_Boundary.pointWithin(rect.lr()))
 	{
@@ -167,7 +167,7 @@ bool GdalRasterApp::getRect2CvMat(const ossimIrect &rect, cv::Mat& outMat, int b
 	return true;
 }
 
-bool GdalRasterApp::getPrincipalRect2CvMatByte(const ossimIrect &rect, cv::Mat& outMat, double scale/* = 1.0*/)
+bool GdalRasterApp::getPrincipalRect2CvMatByte(const ossimIrect &rect, cv::Mat& outMat, double scale/* = 1.0*/)const
 {
 	if (!m_Boundary.pointWithin(rect.ul()) || !m_Boundary.pointWithin(rect.lr()))
 	{
@@ -236,7 +236,7 @@ bool GdalRasterApp::getPrincipalRect2CvMatByte(const ossimIrect &rect, cv::Mat& 
 }
 
 bool GdalRasterApp::getRect2CvMatByte(const ossimIrect &rect, cv::Mat& outMat, int band, double scale/* = 1.0*/,
-	double stretchRatio/* = 0.01*/)
+	double stretchRatio/* = 0.01*/)const
 {
 	ossimIrect clipRect = rect.clipToRect(m_Boundary);
 	if (clipRect.width() <= 1 || clipRect.height() <= 1)
@@ -300,7 +300,7 @@ bool GdalRasterApp::getRect2CvMatByte(const ossimIrect &rect, cv::Mat& outMat, i
 }
 
 bool GdalRasterApp::getRect2CvMatByte(const ossimIrect &rect, cv::Mat& outMat, int band, ossimDpt scale/* = ossimDpt(1.0, 1.0)*/,
-	double stretchRatio/* = 0.01*/, bool bStretch/* = true*/)
+	double stretchRatio/* = 0.01*/, bool bStretch/* = true*/)const
 {
 	ossimIrect clipRect = rect.clipToRect(m_Boundary);
 	if (clipRect.width() <= 1 || clipRect.height() <= 1)
@@ -373,7 +373,7 @@ bool GdalRasterApp::getRect2CvMatByte(const ossimIrect &rect, cv::Mat& outMat, i
 
 bool GdalRasterApp::getCombinedRect2CvMatByte(const ossimIrect &rect, cv::Mat& outMat, vector<unsigned int> bands, vector<double> weights,
 	ossimDpt scale/* = ossimDpt(1.0, 1.0)*/,
-	double stretchRatio/* = 0.01*/, bool bStretch/* = true*/)
+	double stretchRatio/* = 0.01*/, bool bStretch/* = true*/)const
 {
 	ossimIrect clipRect = rect.clipToRect(m_Boundary);
 	if (clipRect.width() <= 1 || clipRect.height() <= 1)
@@ -581,7 +581,7 @@ bool GdalRasterApp::getCombinedRect2CvMatByte(const ossimIrect &rect, cv::Mat& o
 }
 
 bool GdalRasterApp::getRect2CvMatByte(const ossimIrect &rect, cv::Mat& outMat, vector<unsigned int> bands, ossimDpt scale/* = ossimDpt(1.0, 1.0)*/,
-	double stretchRatio/* = 0.01*/, bool bStretch/* = true*/)
+	double stretchRatio/* = 0.01*/, bool bStretch/* = true*/)const
 {
 	ossimIrect clipRect = rect.clipToRect(m_Boundary);
 	if (clipRect.width() <= 1 || clipRect.height() <= 1)
@@ -840,7 +840,7 @@ void GdalRasterApp::setTileHeight(int iTileHeight)
 	releaseCaches();
 }
 
-bool GdalRasterApp::checkTileValidity(int iTileX, int iTileY)
+bool GdalRasterApp::checkTileValidity(int iTileX, int iTileY)const
 {
 	if (iTileX >= m_iTileCountX || iTileY >= m_iTileCountY
 		|| iTileX < 0 || iTileY <0)
@@ -850,7 +850,7 @@ bool GdalRasterApp::checkTileValidity(int iTileX, int iTileY)
 	return true;
 }
 
-bool GdalRasterApp::getTileOffset(int iTileX, int iTileY, int &offsetX, int &offsetY)
+bool GdalRasterApp::getTileOffset(int iTileX, int iTileY, int &offsetX, int &offsetY)const
 {
 	if (!checkTileValidity(iTileX, iTileY))
 	{

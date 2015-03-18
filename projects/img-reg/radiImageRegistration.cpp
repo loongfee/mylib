@@ -361,9 +361,18 @@ ossimDpt radiImageRegistration::slave2master(ossimProjection* slaveProjection,
 ossimDpt radiImageRegistration::slave2master(ossimDpt slaveDpt)
 {
 	ossimDpt masterDpt;
-	ossimGpt gpt;
-	theSlaveProjection->lineSampleToWorld(slaveDpt, gpt);
-	theMasterProjection->worldToLineSample(gpt, masterDpt);
+	if (theSlaveProjection && theMasterProjection)
+	{
+		ossimGpt gpt;
+		theSlaveProjection->lineSampleToWorld(slaveDpt, gpt);
+		theMasterProjection->worldToLineSample(gpt, masterDpt);
+	}
+	else
+	{
+		double x = theGlobalAffineModel[0] + theGlobalAffineModel[1] * slaveDpt.x + theGlobalAffineModel[2] * slaveDpt.y;
+		double y = theGlobalAffineModel[3] + theGlobalAffineModel[4] * slaveDpt.x + theGlobalAffineModel[5] * slaveDpt.y;
+		return ossimDpt(x, y);
+	}
 	return masterDpt;
 }
 
@@ -371,8 +380,17 @@ ossimIpt radiImageRegistration::slave2master(ossimIpt slaveDpt)
 {
 	ossimDpt masterDpt;
 	ossimGpt gpt;
-	theSlaveProjection->lineSampleToWorld(slaveDpt, gpt);
-	theMasterProjection->worldToLineSample(gpt, masterDpt);
+	if (theSlaveProjection && theMasterProjection)
+	{
+		theSlaveProjection->lineSampleToWorld(slaveDpt, gpt);
+		theMasterProjection->worldToLineSample(gpt, masterDpt);
+	}
+	else
+	{
+		double x = theGlobalAffineModel[0] + theGlobalAffineModel[1] * slaveDpt.x + theGlobalAffineModel[2] * slaveDpt.y;
+		double y = theGlobalAffineModel[3] + theGlobalAffineModel[4] * slaveDpt.x + theGlobalAffineModel[5] * slaveDpt.y;
+		return ossimDpt(x, y);
+	}
 	return ossimIpt(masterDpt.x, masterDpt.y);
 }
 
@@ -677,7 +695,7 @@ bool radiImageRegistration::execute()
 	{
 		theAreaOfInterest = theAreaOfInterest.clipToRect(handlerS->getBoundingRect(0));
 	}
-	if (theMaster.ext().upcase() != "SHP" && !useOnline() &&
+	if (theMaster.ext().upcase() != "SHP" && !useOnline() && theSlaveProjection &&
 		!(NULL == mHandler->getImageGeometry().get() || NULL == (mProjection = mHandler->getImageGeometry()->getProjection()).get()))
 	{
 		ossimIrect mBoundary = mHandler->getBoundingRect(0);
@@ -722,6 +740,34 @@ bool radiImageRegistration::execute()
 		return false;
 	}
 
+	if (NULL == mHandler->getImageGeometry().get() || !mProjection || NULL == theSlaveProjection)
+	{
+		GdalRasterApp slaveApp;
+		if (!slaveApp.open(getSlave().c_str()))
+		{
+			cerr<<"radiImageRegistration"<<"::execute can't open slave image  "<< getSlave().c_str() <<endl;
+			return false;
+		}
+
+		GdalRasterApp masterApp;
+		if (!masterApp.open(getMaster().c_str()))
+		{
+			cerr << "radiImageRegistration" << "::execute can't open master image  " << getMaster().c_str() << endl;
+			return false;
+		}
+
+		theGlobalAffineModel = getAffineFromPyramid(slaveApp, masterApp, sb, theMasterBands[0], 16);
+
+		slaveApp.close();
+		masterApp.close();
+
+		if (6 != theGlobalAffineModel.size())
+		{
+			cerr << "radiImageRegistration" << "::fail to estimate the global affine transformation  " << endl;
+			return false;
+		}
+	}
+
 	//open();
 
 	theTset.clearTiePoints();
@@ -731,6 +777,48 @@ bool radiImageRegistration::execute()
 	if (0 == taskid)
 	{
 		cout << theTset.getTiePoints().size() << " tie points are found." << endl;
+
+
+		GdalRasterApp slaveApp;
+		if (!slaveApp.open(getSlave().c_str()))
+		{
+			cerr << "radiImageRegistration" << "::execute can't open slave image  " << getSlave().c_str() << endl;
+			return false;
+		}
+
+		if (theDebug)
+		{
+			bool bStretch = true;
+			cv::Mat slaveMat;
+			ossimIrect srect(ossimIpt(0, 0), ossimIpt(slaveApp.width() - 1, slaveApp.height() - 1));
+			int outsize = 2000;
+			double scale = min(outsize / (double)slaveApp.width(), outsize / (double)slaveApp.height());
+			if (!slaveApp.getRect2CvMatByte(srect, slaveMat, sb, ossimDpt(scale, scale), 0.015, bStretch))
+			{
+				return false;
+			}
+
+			if (slaveMat.type() == CV_8U)
+				cvtColor(slaveMat, slaveMat, CV_GRAY2RGB);
+
+			int semiCrossWidth = 15;
+			int lineWidth = 4;
+			semiCrossWidth = 25;
+			cv::Scalar singlePointColor(0, 0, 255);
+			for (size_t i = 0; i < theTset.getTiePoints().size(); i++)
+			{
+				ossimDpt dpt = theTset.getTiePoints()[i]->getImagePoint();
+				cv::line(slaveMat, cv::Point(dpt.x*scale - semiCrossWidth, dpt.y*scale),
+					cv::Point(dpt.x*scale + semiCrossWidth, dpt.y*scale),
+					singlePointColor, lineWidth);
+				cv::line(slaveMat, cv::Point(dpt.x*scale, dpt.y*scale - semiCrossWidth),
+					cv::Point(dpt.x*scale, dpt.y*scale + semiCrossWidth),
+					singlePointColor, lineWidth);
+			}
+
+			cv::imwrite("points.png", slaveMat);
+			slaveApp.close();
+		}
 	}
 
 //
@@ -1235,107 +1323,6 @@ void radiImageRegistration::writePoints(const ossimFilename& filename, ossimMapP
 //	//handlerM->close();
 //	return match_state::success;
 //}
-
-
-void radiImageRegistration::VLFeatSift(const cv::Mat& inMat, vector<KeyPoint>& kpts, cv::Mat& descriptors)
-{
-	//int noctaves = 2, nlevels = 4, o_min = 0;
-	int noctaves = 1, nlevels = 5, o_min = 0;
-	// noctaves=(int)(log(min)/log(2));
-	vl_sift_pix *ImageData=new vl_sift_pix[inMat.rows * inMat.cols];
-	unsigned char *Pixel;
-	for (int i=0;i<inMat.rows;i++)
-	{
-		for (int j=0;j<inMat.cols;j++)
-		{
-			Pixel=(unsigned char*)(inMat.data+i*inMat.cols+j);
-			ImageData[i*inMat.cols+j]=*(Pixel);
-		}
-	}
-	VlSiftFilt *SiftFilt=NULL;
-	SiftFilt=vl_sift_new(inMat.cols, inMat.rows, noctaves, nlevels, o_min);
-	// default
-	double edge_thresh = 5 ;  //-1 will use the default (as in matlab)
-	double peak_thresh = 0.04;// 0.04;
-	//double edge_thresh = -1;  //-1 will use the default (as in matlab)
-	//double peak_thresh = -1;
-	double norm_thresh = -1 ;
-	double magnif      = -1 ;
-	double window_size = -1 ;
-	if (peak_thresh >= 0) vl_sift_set_peak_thresh (SiftFilt, peak_thresh) ;
-	if (edge_thresh >= 0) vl_sift_set_edge_thresh (SiftFilt, edge_thresh) ;
-	if (norm_thresh >= 0) vl_sift_set_norm_thresh (SiftFilt, norm_thresh) ;
-	if (magnif      >= 0) vl_sift_set_magnif      (SiftFilt, magnif) ;
-	if (window_size >= 0) vl_sift_set_window_size (SiftFilt, window_size);
-	int nKeyPoint=0;
-	int idx=0;
-
-	//descriptor = cv::Mat(cv::Size(128, 1), CV_32FC1);
-	if (vl_sift_process_first_octave(SiftFilt, ImageData)!=VL_ERR_EOF)
-	{
-		while (TRUE)
-		{
-			//计算每组中的关键点
-			vl_sift_detect(SiftFilt);
-			//遍历并绘制每个点			
-			nKeyPoint += SiftFilt->nkeys;
-			VlSiftKeypoint *pKeyPoint=SiftFilt->keys;
-			for (int i=0;i<SiftFilt->nkeys;i++)
-			{
-				VlSiftKeypoint TemptKeyPoint=*pKeyPoint;
-				pKeyPoint++;
-				//cv::KeyPoint kpt(float x, float y, float _size, float _angle=-1,
-				//	float _response=0, int _octave=0, int _class_id=-1);
-				cv::KeyPoint kpt(TemptKeyPoint.x, TemptKeyPoint.y, TemptKeyPoint.sigma/2);
-				//kpts.push_back(kpt);
-
-				//cvDrawCircle(Image, cvPoint(TemptKeyPoint.x,TemptKeyPoint.y),TemptKeyPoint.sigma/2,CV_RGB(255,0,0));
-				idx++;
-				//计算并遍历每个点的方向
-				double angles[4];
-				int angleCount=vl_sift_calc_keypoint_orientations(SiftFilt,angles,&TemptKeyPoint);
-				for (int j=0;j<angleCount;j++)
-				{
-					double TemptAngle=angles[j];
-					//printf("%d: %f\n",j,TemptAngle);
-					//计算每个方向的描述
-					cv::Mat aDescriptor = cv::Mat(cv::Size(128, 1), CV_32FC1);
-					//float *Descriptors=new float[128];
-					vl_sift_calc_keypoint_descriptor(SiftFilt, (float*)aDescriptor.data, &TemptKeyPoint, TemptAngle);
-					descriptors.push_back(aDescriptor);
-					kpt.angle = TemptAngle;
-					kpt.response = TemptKeyPoint.contrast;
-					kpts.push_back(kpt);
-					//int k=0;
-					//while (k<128)
-					//{
-					//	printf("%d: %f",k,Descriptors[k]);
-					//	printf("; ");
-					//	k++;
-					//}
-
-					//printf("\n");
-					//delete []Descriptors;
-					//Descriptors=NULL;
-				}
-
-				//cv::Mat aDescriptor = cv::Mat(cv::Size(128, 1), CV_32FC1);
-				//vl_sift_calc_keypoint_descriptor(SiftFilt, (float*)aDescriptor.data, &TemptKeyPoint, angles[0]);
-				//descriptors.push_back(aDescriptor);
-			}
-			//下一阶
-			if (vl_sift_process_next_octave(SiftFilt)==VL_ERR_EOF)
-			{
-				break;
-			}
-			//free(pKeyPoint);
-			nKeyPoint = NULL;
-		}
-	}
-	vl_sift_delete(SiftFilt);
-	delete []ImageData;
-	ImageData=NULL;
-}
 
 //////////////////////////////////////////////////////////////////////////////
 //#if !defined(SIFTGPU_STATIC) && !defined(SIFTGPU_DLL_RUNTIME) 
@@ -3350,7 +3337,8 @@ int radiImageRegistration::runMatch(const cv::Mat& slaveMat, const cv::Mat& mast
 		}
 		// Draw matches
 		cv::Mat imgMatch;
-		drawMatches(slaveMat, skeypoints, masterMat, mkeypoints, final_matches, imgMatch);
+		drawMatches(slaveMat, skeypoints, masterMat, mkeypoints, final_matches, imgMatch, cv::Scalar_<double>::all(-1),
+			cv::Scalar_<double>::all(-1), vector<ossim_int8>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
 		cv::imwrite("result.png", imgMatch);
 
 		cv::Mat outMat;
@@ -3563,6 +3551,52 @@ ossimIrect radiImageRegistration::getMasterRect(ossimProjection* sProjection, os
 	return ossimIrect(mul.x, mul.y, mlr.x, mlr.y);
 }
 
+
+ossimIrect radiImageRegistration::getMasterRect(ossimIrect sRect, double slaveAccuracy)
+{
+	//ossimIpt sul = sRect.ul() + ossimIpt(-slaveAccuracy, -slaveAccuracy);
+	//ossimIpt sll = sRect.ll() + ossimIpt(-slaveAccuracy, slaveAccuracy);
+
+	ossimIpt sul = sRect.ul() + ossimIpt(-slaveAccuracy, -slaveAccuracy);
+	ossimIpt sur = sRect.ur() + ossimIpt(slaveAccuracy, -slaveAccuracy);
+	ossimIpt slr = sRect.lr() + ossimIpt(slaveAccuracy, slaveAccuracy);
+	ossimIpt sll = sRect.ll() + ossimIpt(-slaveAccuracy, slaveAccuracy);
+
+	ossimDpt p[4];
+	p[0] = slave2master(sul);
+	p[1] = slave2master(sur);
+	p[2] = slave2master(slr);
+	p[3] = slave2master(sll);
+	ossimDpt mul, mlr;
+	ossimGpt gpt;
+
+	int xmin = p[0].x;
+	int xmax = p[0].x;
+	int ymin = p[0].y;
+	int ymax = p[0].y;
+
+	for (int i = 1; i<4; ++i)
+	{
+		if (xmin > p[i].x)
+		{
+			xmin = p[i].x;
+		}
+		if (xmax < p[i].x)
+		{
+			xmax = p[i].x;
+		}
+		if (ymin > p[i].y)
+		{
+			ymin = p[i].y;
+		}
+		if (ymax < p[i].y)
+		{
+			ymax = p[i].y;
+		}
+	}
+	return ossimDrect(xmin, ymin, xmax, ymax);
+}
+
 bool radiImageRegistration::getGridFeaturesParallel(const image_block& block, radiBlockTieGptSet& tSet)
 {
 	bool bStretch = true;
@@ -3618,7 +3652,7 @@ bool radiImageRegistration::getGridFeaturesParallel(const image_block& block, ra
 	GdalRasterApp slaveApp;
 	if (!slaveApp.open(getSlave().c_str()))
 	{
-		cerr<<"radiImageRegistration"<<"::execute can't open slave image  "<< getSlave().c_str() <<endl;
+		//cerr<<"radiImageRegistration"<<"::execute can't open slave image  "<< getSlave().c_str() <<endl;
 		return false;
 	}
 	// select only one band (if multiple)
@@ -3749,13 +3783,16 @@ bool radiImageRegistration::getGridFeaturesParallel(const image_block& block, ra
 			// master
 			ossimIrect mrect;
 			//if (0 == strcmp(masterApp.getGetProjectionRef(), ""))
-			if(NULL == mHandler->getImageGeometry().get() || NULL == (mProjection = mHandler->getImageGeometry()->getProjection()).get())
+			if(NULL == mHandler->getImageGeometry().get() || NULL == (mProjection = mHandler->getImageGeometry()->getProjection()).get()
+				|| NULL == theSlaveProjection)
 			{
 				// 无投影
 				//mrect = ossimIrect(sul - delta_lr, slr + delta_lr);
 				//mrect = ossimIrect(sul, slr);
-				mrect = srect0;
-				gsd_scale = ossimDpt(1.0, 1.0);
+				double scale_x = (slave2master(sul + ossimDpt(1.0, 0.0)) - slave2master(sul)).x;
+				double scale_y = (slave2master(sul + ossimDpt(0.0, 1.0)) - slave2master(sul)).y;
+				mrect = getMasterRect(srect0, 0.0);
+				gsd_scale = ossimDpt(scale_x, scale_y);
 			}
 			else
 			{
@@ -4069,6 +4106,7 @@ bool radiImageRegistration::getGridFeaturesOnline(const image_block& block, radi
 		}
 
 		int logoHeight = 25;
+		logoHeight = 0;
 
 		char url_buf[2048];
 		//string type = "Google";
@@ -4088,8 +4126,8 @@ bool radiImageRegistration::getGridFeaturesOnline(const image_block& block, radi
 		}
 		else if (0 == stricmp(strRefSource, strMapquest))
 		{
-			sprintf_s(url_buf, "http://www.mapquestapi.com/staticmap/v4/getmap?type=sat&center=%lf,%lf&zoom=%d&size=%d,%d&scalebar=false&key=pk.eyJ1IjoibG9vbmdmZWUiLCJhIjoiMXlmVE9CQSJ9.op9z2_EqoaEo8qMBo9i1xQ",
-				ll_center.lon, ll_center.lat, nearestZoomLevel, nWidth, nHeight + logoHeight * 2);
+			sprintf_s(url_buf, "http://www.mapquestapi.com/staticmap/v4/getmap?type=sat&center=%lf,%lf&zoom=%d&size=%d,%d&scalebar=false&key=Kmjtd%%7Cluu7n162n1%%2C22%%3Do5-h61wh",
+				ll_center.lat, ll_center.lon, nearestZoomLevel, nWidth, nHeight + logoHeight * 2);
 			chunk = getDataFromUrl(url_buf);
 		}
 		else if (0 == stricmp(strRefSource, strMapbox))
@@ -4121,7 +4159,7 @@ bool radiImageRegistration::getGridFeaturesOnline(const image_block& block, radi
 
 		cv::resize(masterMat, masterMat, cv::Size(nNewWidth, nNewHeight));//resize image
 
-		slaveApp.stretchRect2Byte<GByte>(nNewWidth, nNewHeight, masterMat.data, masterMat.data, 0.015);
+		//slaveApp.stretchRect2Byte<GByte>(nNewWidth, nNewHeight, masterMat.data, masterMat.data, 0.015);
 
 		if (chunk.memory)
 			free(chunk.memory);

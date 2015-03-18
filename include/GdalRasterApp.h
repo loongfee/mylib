@@ -106,29 +106,29 @@ public:
 	bool open(const char* filename);
 	bool close();
 
-	bool getRect2CvMat(const ossimIrect &rect, cv::Mat& outMat, int band);
-	bool getRect2CvMatByte(const ossimIrect &rect, cv::Mat& outMat, int band, double scale = 1.0, double stretchRatio = 0.01);
+	bool getRect2CvMat(const ossimIrect &rect, cv::Mat& outMat, int band)const;
+	bool getRect2CvMatByte(const ossimIrect &rect, cv::Mat& outMat, int band, double scale = 1.0, double stretchRatio = 0.01)const;
 	bool getRect2CvMatByte(const ossimIrect &rect, cv::Mat& outMat, int band, ossimDpt scale = ossimDpt(1.0, 1.0),
-		double stretchRatio = 0.01, bool bStretch = true);
+		double stretchRatio = 0.01, bool bStretch = true)const;
 	bool getRect2CvMatByte(const ossimIrect &rect, cv::Mat& outMat, vector<unsigned int> band, ossimDpt scale = ossimDpt(1.0, 1.0),
-		double stretchRatio = 0.01, bool bStretch = true);
+		double stretchRatio = 0.01, bool bStretch = true)const;
 	bool getCombinedRect2CvMatByte(const ossimIrect &rect, cv::Mat& outMat, vector<unsigned int> band, vector<double> weights, ossimDpt scale = ossimDpt(1.0, 1.0),
-		double stretchRatio = 0.01, bool bStretch = true);
-	bool getPrincipalRect2CvMatByte(const ossimIrect &rect, cv::Mat& outMat, double scale = 1.0);
+		double stretchRatio = 0.01, bool bStretch = true)const;
+	bool getPrincipalRect2CvMatByte(const ossimIrect &rect, cv::Mat& outMat, double scale = 1.0)const;
 
 	double* getGeoTransform(){return m_adfGeoTransform;};
 	char* getGetProjectionRef(){return m_pszTargetSRS;};
 	GDALDataset* getDataset(){return m_pDataset;};
 	GDALDataType getDataType(){return m_eDataType;};
-	int width(){return m_iWidth;};
-	int height(){return m_iHeight;};
-	int nBand(){return m_iBandCount;};
+	int width()const{return m_iWidth;};
+	int height()const{ return m_iHeight; };
+	int nBand()const{ return m_iBandCount; };
 
-	int getTileWidth(){return m_iTileWidth;};
-	int getTileHeight(){return m_iTileHeight;};
-	int getTileCountX(){return m_iTileCountX;};
-	int getTileCountY(){return m_iTileCountY;};
-	ossimIrect getBoundary(){return m_Boundary;};
+	int getTileWidth()const{ return m_iTileWidth; };
+	int getTileHeight()const{ return m_iTileHeight; };
+	int getTileCountX()const{ return m_iTileCountX; };
+	int getTileCountY()const{ return m_iTileCountY; };
+	ossimIrect getBoundary()const{ return m_Boundary; };
 
 	void setTileWidth(int iTileWidth);
 	void setTileHeight(int iTileHeight);
@@ -150,7 +150,7 @@ public:
 								int nLineSpace = 0,
 								int nBandSpace = 0);
 
-	bool getTileOffset(int iTileX, int iTileY, int &offsetX, int &offsetY);
+	bool getTileOffset(int iTileX, int iTileY, int &offsetX, int &offsetY)const;
 	bool readTile(int iTileX, int iTileY,
 		int nBandCount,
 		int *panBandMap = 0,
@@ -165,14 +165,12 @@ public:
 							int nPixelSpace = 0,
 							int nLineSpace = 0,
 							int nBandSpace = 0);
-	bool checkTileValidity(int iTileX, int iTileY);
+	bool checkTileValidity(int iTileX, int iTileY)const;
 	
 	bool getPixel(int x, int y, void** data);
 
-	ossimIrect getBoundary()const{ return m_Boundary;};
-
-	GdalRasterApp::RasterBuf* getBufInfo(){return m_CacheList.back();};
-	std::vector<GdalRasterApp::RasterBuf*> getCacheInfoList(){return m_CacheList;};
+	GdalRasterApp::RasterBuf* getBufInfo()const{ return m_CacheList.back(); };
+	std::vector<GdalRasterApp::RasterBuf*> getCacheInfoList()const{ return m_CacheList; };
 
 	template<class T1, class T2>
 	void linesample2world(T1 linesample, T2 &world)const 
@@ -224,7 +222,7 @@ public:
 	};
 
 	template<class T>
-	cv::Mat gdalData2FloatcvMat(int nw, int nh, void* pRectData)
+	cv::Mat gdalData2FloatcvMat(int nw, int nh, void* pRectData)const
 	{
 		cv::Mat outMat = cv::Mat(cv::Size(nw, nh), CV_32FC1);
 		//cv::Mat outMat = cv::Mat(cv::Size(nw, nh), CV_8UC1);
@@ -242,7 +240,7 @@ public:
 	}
 
 	template<class T>
-	cv::Mat gdalData2DoublecvMat(int nw, int nh, void* pRectData)
+	cv::Mat gdalData2DoublecvMat(int nw, int nh, void* pRectData)const
 	{
 		cv::Mat outMat = cv::Mat(cv::Size(nw, nh), CV_64FC1);
 		//cv::Mat outMat = cv::Mat(cv::Size(nw, nh), CV_8UC1);
@@ -259,7 +257,7 @@ public:
 	}
 
 	template<class T>
-	void stretchRect2Byte(int nw, int nh, void* pRectData, GByte* &pByteData, double stretchRatio = 0.02)
+	void stretchRect2Byte(int nw, int nh, void* pRectData, GByte* &pByteData, double stretchRatio = 0.02)const
 	{
 		//if (pByteData)
 		//{
@@ -383,7 +381,7 @@ public:
 
 
 	template<class T>
-	void stretchRect2Byte(int nw, int nh, void* pRectData, arma::mat &X, int iCol, double stretchRatio = 0.02)
+	void stretchRect2Byte(int nw, int nh, void* pRectData, arma::mat &X, int iCol, double stretchRatio = 0.02)const
 	{
 		//if (pByteData)
 		//{

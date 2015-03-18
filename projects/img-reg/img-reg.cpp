@@ -530,7 +530,8 @@ int main( int argc, char** argv )
 	}
 	else
 	{
-		ossimFilename preferences_file = ossimFilename(pszPreferenceFile);
+		//ossimFilename preferences_file = ossimFilename(pszPreferenceFile);
+		ossimFilename preferences_file = "D:\\opensource\\ossim\\preference.txt";
 		if (preferences_file.exists())
 		{
 			ossimPreferences::instance()->loadPreferences(preferences_file);
@@ -662,17 +663,61 @@ int main( int argc, char** argv )
 		pszGcpFile = "D:\\workspace\\IKONOS\\po_10655_pan_0000000\\auto_online.txt";
 
 		pszSourceFile = "D:\\workspace\\IKONOS\\StereoMP_1m_BW_8bit\\po_97258_pan_0000000.tif";
-		pszReferenceFile = "D:\\workspace\\IKONOS\\StereoMP_1m_BW_8bit\\po_97258_pan_0010000_orth.tif";
+		pszReferenceFile = "D:\\workspace\\IKONOS\\StereoMP_1m_BW_8bit\\po_97258_pan_0010000.tif";
 		//pszReferenceFile = "Google";
 		pszGcpFile = "D:\\workspace\\IKONOS\\StereoMP_1m_BW_8bit\\auto.txt";
+
+		pszSourceFile = "D:\\workspace\\aster\\DPRA201405190037.tif";
+		pszReferenceFile = "D:\\workspace\\aster\\DPRA201406240003.tif";
+		pszGcpFile = "D:\\workspace\\aster\\DPRA201405190037_auto.txt";
+
+		//pszSourceFile = "D:\\workspace\\fuhai\\FCGC600205282\\IMG_PHR1A_MS_002\\IMG_PHR1A_MS_201309040246085_SEN_922557101-002_R1C1.TIF";
+		//pszReferenceFile = "D:\\workspace\\fuhai\\2012ref\\2302272012SPOT5DOM.img";
+		//pszGcpFile = "D:\\workspace\\fuhai\\FCGC600205282\\IMG_PHR1A_MS_002\\IMG_PHR1A_MS_201309040246085_SEN_922557101-002_R1C1_auto.txt";
+
+		pszSourceFile = "D:\\workspace\\IKONOS\\Stereo\\po_162796_0010000\\po_162796_pan_0010000.tif";
+		pszReferenceFile = "D:\\workspace\\IKONOS\\Stereo\\po_162796_0000000\\po_162796_pan_0000000.tif";
+		//pszReferenceFile = "Google";
+		pszGcpFile = "D:\\workspace\\IKONOS\\Sterer\\po_162796_0010000\\po_162796_pan_0010000_auto.txt";
+
+		pszSourceFile = "E:\\HJ1\\CBERS04\\CBERS04_MUX_MYC_201501270340_201501270352\\Scene36\\IMAGE.TIF";
+		pszReferenceFile = "G:\\testdata\\china\\china2005-20141115.tif";
+		//pszReferenceFile = "Bing";
+		pszGcpFile = "E:\\HJ1\\CBERS04\\CBERS04_MUX_MYC_201501270340_201501270352\\Scene36\\auto-online.txt";
+
+		pszSourceFile = "E:\\HJ1\\CBERS04\\CBERS04_MUX_MYC_201501280446_201501280454\\Scene18\\IMAGE.TIF";
+		pszReferenceFile = "G:\\testdata\\china\\china2005-20141115.tif";
+		//pszReferenceFile = "Bing";
+		pszGcpFile = "E:\\HJ1\\CBERS04\\CBERS04_MUX_MYC_201501280446_201501280454\\Scene18\\auto-online.txt";
+
+		pszSourceFile = "E:\\HJ1\\CBERS04\\CBERS04_MUX_MYC_201501230418_201501230428\\Scene31\\IMAGE.TIF";
+		pszReferenceFile = "G:\\testdata\\china\\china2005-20141115.tif";
+		//pszReferenceFile = "Bing";
+		pszGcpFile = "E:\\HJ1\\CBERS04\\CBERS04_MUX_MYC_201501230418_201501230428\\Scene31\\auto-online.txt";
+
+
+		pszSourceFile = "D:\\workspace\\GF\\test\\GF1_PMS2_E116.8_N40.5_20130501_L1A0000119982-MSS2.tiff";
+		pszReferenceFile = "Google";
+		pszReferenceFile = "Bing";
+		pszReferenceFile = "MapQuest";
+		pszReferenceFile = "Mapbox";
+		pszGcpFile = "D:\\workspace\\GF\\test\\auto_online.txt";
+
+		pszSourceFile = "D:\\workspace\\Theos\\112647-116749-TH2014002354(1A930)\\THEOS1_20140226005006711_14002354-0_02_1_1\\image.TIF";
+		pszReferenceFile = "D:\\workspace\\Theos\\112647-116750-TH2014002355(2A)\\THEOS1_20140226005105841_14002355-0_02_1_1\\IMAGERY.TIF";
+		//pszReferenceFile = "Bing";
+		pszGcpFile = "D:\\workspace\\Theos\\112647-116749-TH2014002354(1A930)\\THEOS1_20140226005006711_14002354-0_02_1_1\\auto.txt";
 
 		pointType = radiImageRegistration::point_type::control;
 		//pointType = radiImageRegistration::point_type::tie;
 		nPoint = 25;
+		//nPoint = 100;
 		nThreads = 1;
+		//nThreads = 0;
 		bAppend = false;
 		bDebug = true;
 		//bDebug = false;
+		//sAccuracy = 300;
 		sAccuracy = 20;
 		//sBandList = { 0 };
 		//sBandList = { 0, 1, 2, 3, 4};
@@ -684,9 +729,11 @@ int main( int argc, char** argv )
 		//sBandList = { 0 };
 		//mBandList = { 2 };
 		sBandList = { 1 };
-		mBandList = { 0 };
+		mBandList = { 1 };
 		sBandList = { 0 };
 		mBandList = { 0 };
+		//sBandList = { 2 };
+		//mBandList = { 0 };
 		bGeographic = true;
 
 

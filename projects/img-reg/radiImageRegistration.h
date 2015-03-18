@@ -404,7 +404,7 @@ public:
 	   ossimIrect sRect, double slaveAccuracy);
    ossimIrect getMasterRect(ossimProjection* sProjection, ossimProjection* mProjection,
 	   ossimIrect sRect, double slaveAccuracy);
-   void VLFeatSift(const cv::Mat& inMat, vector<KeyPoint>& kpts, cv::Mat& descriptors);
+   ossimIrect getMasterRect(ossimIrect sRect, double slaveAccuracy);
 
    void appendTiePoints(const ossimFilename& filename);
    void appendControlPoints(const ossimFilename& filename, ossimMapProjection* pMapProjection = NULL);   
@@ -467,6 +467,8 @@ protected:
    ossimRefPtr<ossimImageGeometry> getOutputImageGeometry();
 
    ossimMapProjection* getOutputProjection();
+
+   Eigen::VectorXd theGlobalAffineModel;
    
    bool buildRenderer(
       ossimImageChain* chain,

@@ -283,8 +283,8 @@ static int getZoomLevel(double res, double lat = 0)
 {
 	//return (int)(log(156543.033900000 * cos(lat*0.0174532925) / res) / log(2) + 0.5);
 	//return (int)(log(156543.033900000 * cos(lat*0.0174532925) / res) / log(2));
-	return ceil(log(156543.033900000 * cos(lat*0.0174532925) / res) / log(2.0));
-	//return int(log(156543.033900000 * cos(lat*0.0174532925) / res) / log(2.0) + 0.5);
+	//return ceil(log(156543.033900000 * cos(lat*0.0174532925) / res) / log(2.0));
+	return int(log(156543.033900000 * cos(lat*0.0174532925) / res) / log(2.0) + 0.5);
 }
 
 
@@ -1095,5 +1095,405 @@ static void OrbDetector(const cv::Mat& inMat, vector<KeyPoint>& kpts, cv::Mat& d
 	//delete extractor;
 }
 
+static void VLFeatSift(const cv::Mat& inMat, vector<KeyPoint>& kpts, cv::Mat& descriptors)
+{
+	//int noctaves = 2, nlevels = 4, o_min = 0;
+	int noctaves = 1, nlevels = 5, o_min = 0;
+	// noctaves=(int)(log(min)/log(2));
+	vl_sift_pix *ImageData = new vl_sift_pix[inMat.rows * inMat.cols];
+	unsigned char *Pixel;
+	for (int i = 0; i<inMat.rows; i++)
+	{
+		for (int j = 0; j<inMat.cols; j++)
+		{
+			Pixel = (unsigned char*)(inMat.data + i*inMat.cols + j);
+			ImageData[i*inMat.cols + j] = *(Pixel);
+		}
+	}
+	VlSiftFilt *SiftFilt = NULL;
+	SiftFilt = vl_sift_new(inMat.cols, inMat.rows, noctaves, nlevels, o_min);
+	// default
+	double edge_thresh = 5;  //-1 will use the default (as in matlab)
+	double peak_thresh = 0.04;// 0.04;
+	//double edge_thresh = -1;  //-1 will use the default (as in matlab)
+	//double peak_thresh = -1;
+	double norm_thresh = -1;
+	double magnif = -1;
+	double window_size = -1;
+	if (peak_thresh >= 0) vl_sift_set_peak_thresh(SiftFilt, peak_thresh);
+	if (edge_thresh >= 0) vl_sift_set_edge_thresh(SiftFilt, edge_thresh);
+	if (norm_thresh >= 0) vl_sift_set_norm_thresh(SiftFilt, norm_thresh);
+	if (magnif >= 0) vl_sift_set_magnif(SiftFilt, magnif);
+	if (window_size >= 0) vl_sift_set_window_size(SiftFilt, window_size);
+	int nKeyPoint = 0;
+	int idx = 0;
+
+	//descriptor = cv::Mat(cv::Size(128, 1), CV_32FC1);
+	if (vl_sift_process_first_octave(SiftFilt, ImageData) != VL_ERR_EOF)
+	{
+		while (TRUE)
+		{
+			//计算每组中的关键点
+			vl_sift_detect(SiftFilt);
+			//遍历并绘制每个点			
+			nKeyPoint += SiftFilt->nkeys;
+			VlSiftKeypoint *pKeyPoint = SiftFilt->keys;
+			for (int i = 0; i<SiftFilt->nkeys; i++)
+			{
+				VlSiftKeypoint TemptKeyPoint = *pKeyPoint;
+				pKeyPoint++;
+				//cv::KeyPoint kpt(float x, float y, float _size, float _angle=-1,
+				//	float _response=0, int _octave=0, int _class_id=-1);
+				cv::KeyPoint kpt(TemptKeyPoint.x, TemptKeyPoint.y, TemptKeyPoint.sigma / 2);
+				//kpts.push_back(kpt);
+
+				//cvDrawCircle(Image, cvPoint(TemptKeyPoint.x,TemptKeyPoint.y),TemptKeyPoint.sigma/2,CV_RGB(255,0,0));
+				idx++;
+				//计算并遍历每个点的方向
+				double angles[4];
+				int angleCount = vl_sift_calc_keypoint_orientations(SiftFilt, angles, &TemptKeyPoint);
+				for (int j = 0; j<angleCount; j++)
+				{
+					double TemptAngle = angles[j];
+					//printf("%d: %f\n",j,TemptAngle);
+					//计算每个方向的描述
+					cv::Mat aDescriptor = cv::Mat(cv::Size(128, 1), CV_32FC1);
+					//float *Descriptors=new float[128];
+					vl_sift_calc_keypoint_descriptor(SiftFilt, (float*)aDescriptor.data, &TemptKeyPoint, TemptAngle);
+					descriptors.push_back(aDescriptor);
+					kpt.angle = TemptAngle;
+					kpt.response = TemptKeyPoint.contrast;
+					kpts.push_back(kpt);
+					//int k=0;
+					//while (k<128)
+					//{
+					//	printf("%d: %f",k,Descriptors[k]);
+					//	printf("; ");
+					//	k++;
+					//}
+
+					//printf("\n");
+					//delete []Descriptors;
+					//Descriptors=NULL;
+				}
+
+				//cv::Mat aDescriptor = cv::Mat(cv::Size(128, 1), CV_32FC1);
+				//vl_sift_calc_keypoint_descriptor(SiftFilt, (float*)aDescriptor.data, &TemptKeyPoint, angles[0]);
+				//descriptors.push_back(aDescriptor);
+			}
+			//下一阶
+			if (vl_sift_process_next_octave(SiftFilt) == VL_ERR_EOF)
+			{
+				break;
+			}
+			//free(pKeyPoint);
+			nKeyPoint = NULL;
+		}
+	}
+	vl_sift_delete(SiftFilt);
+	delete[]ImageData;
+	ImageData = NULL;
+}
+
+
+static Eigen::VectorXd getAffineFromPyramid(const GdalRasterApp& slaveApp, const GdalRasterApp& masterApp, int sband = 0, int mband = 0, double scale = 16)
+{
+	Eigen::VectorXd affine_model;
+	bool bStretch = true;
+	cv::Mat slaveMat;
+	ossimIrect srect(ossimIpt(0, 0), ossimIpt(slaveApp.width() - 1, slaveApp.height() - 1));
+	if (!slaveApp.getRect2CvMatByte(srect, slaveMat, sband, ossimDpt(1.0 / scale, 1.0 / scale), 0.015, bStretch))
+	{
+		return affine_model;
+	}
+
+	cv::Mat masterMat;
+	ossimIrect mrect(ossimIpt(0, 0), ossimIpt(masterApp.width() - 1, masterApp.height() - 1));
+	if (!masterApp.getRect2CvMatByte(mrect, masterMat, sband, ossimDpt(1.0 / scale, 1.0 / scale), 0.015, bStretch))
+	{
+		return affine_model;
+	}
+
+	float nndrRatio = 0.75f;
+	float angle_diff_threshold = 20.0f / 180.0f * VL_PI;
+	double pos_threshold = 0.5;
+	double affine_residual_threshold = 2.0; //pixel
+	float std_scale_diff_threshold = 0.2f;
+	float scale_ratio_threshold = 0.7f;	// 0.8f
+	int count_pos = 0;
+	int matched_counts[10];
+
+
+	// detect corners
+	//cv::initModule_features2d();
+	std::vector<KeyPoint> skeypoints, mkeypoints;
+	cv::Mat sdescriptors, mdescriptors;
+
+	VLFeatSift(slaveMat, skeypoints, sdescriptors);
+	if (skeypoints.size() < 10)
+	{
+		return affine_model;
+
+	}
+	VLFeatSift(masterMat, mkeypoints, mdescriptors);
+	if (mkeypoints.size() < 10)
+	{
+		return affine_model;
+	}
+	
+	BFMatcher matcher(NORM_L1, false);
+	vector< vector< DMatch >  > matches;
+	matcher.knnMatch(sdescriptors, mdescriptors, matches, 2);
+
+	// inverse mathcing
+	vector< vector< DMatch >  > matches_inverse;
+	matcher.knnMatch(mdescriptors, sdescriptors, matches_inverse, 2);
+
+	// "cross-matching" and "first and second minimum distances ratio test"
+	vector< DMatch > good_matches;
+	findGoogdMatches(matches, matches_inverse, good_matches, nndrRatio, true);
+	vector< DMatch > good_matches0 = good_matches;
+
+	matched_counts[count_pos++] = (int)good_matches.size();
+
+	// find max scale
+	const int scale_bins = 41;
+	float scale_step = 1.2f;
+	int scale_hist[scale_bins] = { 0 };
+	float scale_bin_length = 1.0f;
+	float scale_bin_start = (scale_bins / 2);
+	std::vector<double> scaleList;
+	for (size_t i = 0; i < good_matches.size(); i++)
+	{
+		float a1 = mkeypoints[good_matches[i].trainIdx].size;
+		float a2 = skeypoints[good_matches[i].queryIdx].size;
+		float scale_ratio = a1 / a2;
+
+		float log_scale_ratio = log(scale_ratio) / log(scale_step);
+
+		scale_hist[(int)(scale_bin_start + log_scale_ratio / scale_bin_length + 0.5)]++;
+	}
+
+	double scalePeak = 1.0;
+	/* find the histogram maximum */
+	int maxh = 0;
+	for (int i = 0; i < scale_bins; ++i)
+		maxh = max(maxh, scale_hist[i]);
+
+	for (int i = 0; i < scale_bins; ++i) {
+		double h0 = scale_hist[i];
+		double hm = scale_hist[(i - 1 + scale_bins) % scale_bins];
+		double hp = scale_hist[(i + 1 + scale_bins) % scale_bins];
+
+		/* is this a peak? */
+		if (h0 > 0.95*maxh && h0 > hm && h0 > hp) {
+
+			/* quadratic interpolation */
+			double di = -0.5 * (hp - hm) / (hp + hm - 2 * h0);
+			double th = (i + di + 0.5) - scale_bin_start;
+			scalePeak = pow(scale_step, th);
+			break;
+		}
+	}
+
+	// eliminating by scale
+	for (size_t i = 0; i < good_matches.size();)
+	{
+		float s1 = mkeypoints[good_matches[i].trainIdx].size;
+		float s2 = skeypoints[good_matches[i].queryIdx].size;
+		float scale_ratio = fabs(s1 / s2);
+		if (fabs(log(scale_ratio / scalePeak)) > fabs(log(scale_ratio_threshold)))
+		//if (scale_ratio < scale_ratio_threshold || scale_ratio * scale_ratio_threshold > scalePeak)
+		{
+			good_matches.erase(good_matches.begin() + i);
+			continue;
+		}
+		i++;
+	}
+
+	matched_counts[count_pos++] = (int)good_matches.size();
+	if (good_matches.size() < 4)
+	{
+		return affine_model;
+	}
+
+	// find max rotation angle
+	const int angle_bins = 36;
+	int angle_hist[angle_bins] = { 0 };
+	float angle_bin_length = 2.0f*VL_PI / (float)angle_bins;
+	std::vector<double> angle_diffList;
+	for (size_t i = 0; i < good_matches.size(); i++)
+	{
+		float a1 = mkeypoints[good_matches[i].trainIdx].angle;
+		float a2 = skeypoints[good_matches[i].queryIdx].angle;
+		float angle_diff = a1 - a2;
+		if (angle_diff < 0.0)
+		{
+			angle_diff += 2.0*VL_PI;
+		}
+
+		angle_hist[(int)(angle_diff / angle_bin_length)]++;
+	}
+
+	double ratAngle = 0.0;
+	/* find the histogram maximum */
+	maxh = 0;
+	for (int i = 0; i < angle_bins; ++i)
+		maxh = max(maxh, angle_hist[i]);
+
+	for (int i = 0; i < angle_bins; ++i) {
+		double h0 = angle_hist[i];
+		double hm = angle_hist[(i - 1 + angle_bins) % angle_bins];
+		double hp = angle_hist[(i + 1 + angle_bins) % angle_bins];
+
+		/* is this a peak? */
+		if (h0 > 0.95*maxh && h0 > hm && h0 > hp) {
+
+			/* quadratic interpolation */
+			double di = -0.5 * (hp - hm) / (hp + hm - 2 * h0);
+			double th = 2 * VL_PI * (i + di + 0.5) / angle_bins;
+			ratAngle = th;
+			break;
+		}
+	}
+
+	// eliminating by rotation
+	for (size_t i = 0; i < good_matches.size();)
+	{
+		float a1 = mkeypoints[good_matches[i].trainIdx].angle;
+		float a2 = skeypoints[good_matches[i].queryIdx].angle;
+		float angle_diff = a1 - a2;
+		if (angle_diff < 0.0)
+		{
+			angle_diff += 2.0*VL_PI;
+		}
+
+		if (fabs(angle_diff - ratAngle) > angle_diff_threshold)
+		{
+			good_matches.erase(good_matches.begin() + i);
+			continue;
+		}
+		i++;
+	}
+	matched_counts[count_pos++] = (int)good_matches.size();
+
+	// eliminating repeated points
+	removeRepeated(skeypoints, mkeypoints, good_matches, pos_threshold);
+
+
+	if (good_matches.size() < 4)
+	{
+		return affine_model;
+	}
+	
+	vector<int> inliers;
+	vector<double> rigid_model = mylib::rigidRansac(skeypoints, mkeypoints, good_matches, inliers, 0.85);
+	matched_counts[count_pos++] = (int)inliers.size();
+
+	//double s = sqrt(rigid_model[0] * rigid_model[0] + rigid_model[1] * rigid_model[1]);
+	////double angle = atan(rigid_model[1] / rigid_model[0]);
+	//double arcsin = rigid_model[1] / s;
+	//double arccos = rigid_model[0] / s;
+	//double angle;
+	//if (arccos >= 0)
+	//{
+	//	angle = asin(arcsin);
+	//}
+	//else
+	//{
+	//	if (arcsin >= 0)
+	//	{
+	//		angle = PI - asin(arcsin);
+	//	}
+	//	else if (arcsin < 0)
+	//	{
+	//		angle = -PI - asin(arcsin);
+	//	}
+	//}
+
+	//double angle_threshold = 0.5; // rad -- 28.6478897565deg
+	//if (fabs(angle) > PI*0.25)
+	//{
+	//	return affine_model;
+	//}
+	//for (size_t i = 0; i < inliers.size(); i++)
+	//{
+	//	float a1 = mkeypoints[good_matches[inliers[i]].trainIdx].angle * PI / 360.0;
+	//	float a2 = skeypoints[good_matches[inliers[i]].queryIdx].angle * PI / 360.0;
+	//	double angle_diff = a1 - a2;
+	//	if (fabs(angle_diff + angle) > angle_threshold)
+	//	{
+	//		return affine_model;
+	//		inliers.erase(inliers.begin() + i);
+	//		i--;
+	//	}
+	//}
+
+	//if (fabs(s - 1) > 0.5)
+	//{
+	//	return affine_model;
+	//}
+
+	// fit affine model
+	//Eigen::VectorXd affine_model;
+	while (inliers.size() >= 4)
+	{
+		// Build matrices to solve Ax = b problem:
+		Eigen::VectorXd b(inliers.size() * 2);
+		Eigen::MatrixXd A(inliers.size() * 2, 6);
+		//b = candidates.col(6);
+		for (int i = 0; i < (int)inliers.size(); ++i)
+		{
+			A(2 * i, 0) = 1.0;
+			A(2 * i, 1) = skeypoints[good_matches[inliers[i]].queryIdx].pt.x;
+			A(2 * i, 2) = skeypoints[good_matches[inliers[i]].queryIdx].pt.y;
+			A(2 * i, 3) = 0.0;
+			A(2 * i, 4) = 0.0;
+			A(2 * i, 5) = 0.0;
+			b(2 * i) = mkeypoints[good_matches[inliers[i]].trainIdx].pt.x;
+
+			A(2 * i + 1, 0) = 0.0;
+			A(2 * i + 1, 1) = 0.0;
+			A(2 * i + 1, 2) = 0.0;
+			A(2 * i + 1, 3) = 1.0;
+			A(2 * i + 1, 4) = skeypoints[good_matches[inliers[i]].queryIdx].pt.x;
+			A(2 * i + 1, 5) = skeypoints[good_matches[inliers[i]].queryIdx].pt.y;
+			b(2 * i + 1) = mkeypoints[good_matches[inliers[i]].trainIdx].pt.y;
+		}
+		// Compute least-squares solution:
+		affine_model = (A.transpose()*A).inverse()*A.transpose()*b;
+		Eigen::VectorXd resMat = A*affine_model - b;
+		double max_residual = 0.0;
+		int max_pos = 0;
+		for (size_t i = 0; i < inliers.size(); i++)
+		{
+			double residual = sqrt(resMat[2 * i] * resMat[2 * i] + resMat[2 * i + 1] * resMat[2 * i + 1]);
+			if (residual > max_residual)
+			{
+				max_residual = residual;
+				max_pos = i;
+			}
+		}
+
+		if (max_residual > affine_residual_threshold)
+		{
+			inliers.erase(inliers.begin() + max_pos);
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	matched_counts[count_pos++] = (int)inliers.size();
+	if (inliers.size() < 4)
+	{
+		return affine_model;
+	}
+	
+	affine_model[0] *= scale;
+	affine_model[3] *= scale;
+	return affine_model;
+}
 
 #endif
